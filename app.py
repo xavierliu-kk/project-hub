@@ -948,7 +948,53 @@ def manager():
     ''')
     person_stats = c.fetchall()
 
-    # 5. Unified activity log — all recent (150 entries)
+    # 5. Week-mode summary stats
+    c.execute('''
+        SELECT
+            COUNT(*)                                          AS total_actions,
+            COUNT(DISTINCT project_id)                        AS active_projects,
+            COUNT(DISTINCT user_id)                           AS active_users,
+            COUNT(*) FILTER (WHERE action_type='pulse')       AS pulse_count,
+            COUNT(*) FILTER (WHERE action_type='comment')     AS comment_count,
+            COUNT(*) FILTER (WHERE action_type='edit')        AS edit_count,
+            COUNT(*) FILTER (WHERE action_type='sub_project') AS sub_count
+        FROM activity_log
+        WHERE created_at >= %s AND created_at < %s
+    ''', (last_week_start, this_week_start))
+    week_summary = c.fetchone()
+
+    # 6. Week dept stats (activity counts by dept)
+    c.execute('''
+        SELECT
+            COALESCE(u.department, '未指派') AS department,
+            COUNT(*) AS total,
+            COUNT(*) FILTER (WHERE al.action_type='pulse')   AS pulse_count,
+            COUNT(*) FILTER (WHERE al.action_type='comment') AS comment_count,
+            COUNT(*) FILTER (WHERE al.action_type='edit')    AS edit_count
+        FROM activity_log al
+        JOIN users u ON al.user_id = u.id
+        WHERE al.created_at >= %s AND al.created_at < %s
+        GROUP BY COALESCE(u.department, '未指派')
+        ORDER BY total DESC
+    ''', (last_week_start, this_week_start))
+    week_dept_stats = c.fetchall()
+
+    # 7. Week person stats (activity counts by person)
+    c.execute('''
+        SELECT
+            u.name AS user_name,
+            COALESCE(u.department, '') AS department,
+            COUNT(*) AS action_count,
+            COUNT(DISTINCT al.project_id) AS project_count
+        FROM activity_log al
+        JOIN users u ON al.user_id = u.id
+        WHERE al.created_at >= %s AND al.created_at < %s
+        GROUP BY u.name, u.department
+        ORDER BY action_count DESC
+    ''', (last_week_start, this_week_start))
+    week_person_stats = c.fetchall()
+
+    # 8. Unified activity log — all recent (150 entries) + last week
     _log_sql = '''
         SELECT
             al.id, al.project_id, al.action_type, al.action_label, al.created_at,
@@ -973,8 +1019,9 @@ def manager():
 
     release_db(conn)
 
+    # All-mode chart data
     dept_chart = {
-        'labels':  [r['department']   for r in dept_stats],
+        'labels':  [r['department']    for r in dept_stats],
         'new':     [r['new_count']     for r in dept_stats],
         'process': [r['process_count'] for r in dept_stats],
         'done':    [r['done_count']    for r in dept_stats],
@@ -989,17 +1036,41 @@ def manager():
         'done':    summary['done_count']  or 0,
     }
 
+    # Week-mode chart data
+    week_dept_chart = {
+        'labels':  [r['department']   for r in week_dept_stats],
+        'pulse':   [r['pulse_count']   for r in week_dept_stats],
+        'comment': [r['comment_count'] for r in week_dept_stats],
+        'edit':    [r['edit_count']    for r in week_dept_stats],
+    }
+    week_person_chart = {
+        'labels': [r['user_name']    for r in week_person_stats],
+        'totals': [r['action_count'] for r in week_person_stats],
+    }
+    week_action_chart = {
+        'pulse':       week_summary['pulse_count']   or 0,
+        'comment':     week_summary['comment_count'] or 0,
+        'edit':        week_summary['edit_count']    or 0,
+        'sub_project': week_summary['sub_count']     or 0,
+    }
+
     return render_template(
         'manager.html',
         summary=summary,
         last_week_updated=last_week_updated,
+        week_summary=week_summary,
         dept_stats=dept_stats,
         person_stats=person_stats,
+        week_dept_stats=week_dept_stats,
+        week_person_stats=week_person_stats,
         all_logs=all_logs,
         last_week_logs=last_week_logs,
         dept_chart=dept_chart,
         person_chart=person_chart,
         status_chart=status_chart,
+        week_dept_chart=week_dept_chart,
+        week_person_chart=week_person_chart,
+        week_action_chart=week_action_chart,
         pulse_status=PULSE_STATUS,
         last_week_start=last_week_start.date(),
         last_week_end=(this_week_start - timedelta(days=1)).date(),

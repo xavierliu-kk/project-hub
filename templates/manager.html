@@ -5,133 +5,119 @@
 {% block content %}
 
 {% set dept_colors = {
-    '會計':     '#1d4ed8',
-    '財務':     '#15803d',
-    '投資人':   '#7e22ce',
-    '財務規劃': '#0f766e',
-    '法務':     '#c2410c',
-    '自動化':   '#3730a3',
-    '財務長':   '#be123c',
-    '未指派':   '#6b7280',
+    '會計':     '#1d4ed8', '財務':     '#15803d',
+    '投資人':   '#7e22ce', '財務規劃': '#0f766e',
+    '法務':     '#c2410c', '自動化':   '#3730a3',
+    '財務長':   '#be123c', '未指派':   '#6b7280',
 } %}
 {% set dept_bg = {
-    '會計':     '#dbeafe',
-    '財務':     '#dcfce7',
-    '投資人':   '#f3e8ff',
-    '財務規劃': '#ccfbf1',
-    '法務':     '#ffedd5',
-    '自動化':   '#e0e7ff',
-    '財務長':   '#ffe4e6',
-    '未指派':   '#f3f4f6',
+    '會計':     '#dbeafe', '財務':     '#dcfce7',
+    '投資人':   '#f3e8ff', '財務規劃': '#ccfbf1',
+    '法務':     '#ffedd5', '自動化':   '#e0e7ff',
+    '財務長':   '#ffe4e6', '未指派':   '#f3f4f6',
 } %}
-{% set action_icons = {
-    'pulse':       'bi-activity',
-    'edit':        'bi-pencil-square',
-    'comment':     'bi-chat-left-text',
-    'sub_project': 'bi-diagram-2',
-} %}
-{% set action_colors = {
-    'pulse':       '#2b7bb9',
-    'edit':        '#d97706',
-    'comment':     '#7e22ce',
-    'sub_project': '#0f766e',
-} %}
-{% set action_bg = {
-    'pulse':       '#eff6ff',
-    'edit':        '#fffbeb',
-    'comment':     '#faf5ff',
-    'sub_project': '#f0fdfa',
-} %}
+{% set aicon  = {'pulse':'bi-activity','edit':'bi-pencil-square','comment':'bi-chat-left-text','sub_project':'bi-diagram-2'} %}
+{% set acolor = {'pulse':'#2b7bb9','edit':'#d97706','comment':'#7e22ce','sub_project':'#0f766e'} %}
+{% set abg    = {'pulse':'#eff6ff','edit':'#fffbeb','comment':'#faf5ff','sub_project':'#f0fdfa'} %}
 
 <style>
 .stat-card {
-    background:#fff; border-radius:12px; padding:20px 22px;
+    background:#fff; border-radius:12px; padding:18px 20px;
     border:1px solid var(--blue-pale);
     box-shadow:0 2px 8px rgba(26,79,122,0.06);
-    display:flex; flex-direction:column; gap:6px;
+    display:flex; flex-direction:column; gap:5px;
+    transition:border-color 0.2s, box-shadow 0.2s;
 }
-.stat-value { font-size:32px; font-weight:800; letter-spacing:-1.5px; line-height:1; color:var(--blue-deep); }
-.stat-label { font-size:11.5px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; }
+.stat-card.week-highlight { border-color:#0f766e; box-shadow:0 0 0 2px rgba(15,118,110,0.15); }
+.stat-value { font-size:30px; font-weight:800; letter-spacing:-1.5px; line-height:1; }
+.stat-label { font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.05em; }
 .stat-sub   { font-size:11px; color:var(--text-light); }
 
-.chart-card {
+.panel {
     background:#fff; border-radius:12px;
     border:1px solid var(--blue-pale);
     box-shadow:0 2px 8px rgba(26,79,122,0.06); overflow:hidden;
 }
-.chart-card-header {
-    padding:14px 18px 10px; border-bottom:1px solid var(--blue-pale);
-    font-size:12px; font-weight:700; color:var(--blue-deep);
+.panel-hd {
+    padding:12px 16px 10px; border-bottom:1px solid var(--blue-pale);
+    font-size:11px; font-weight:700; color:var(--blue-deep);
     text-transform:uppercase; letter-spacing:0.06em;
+    display:flex; align-items:center; justify-content:space-between;
 }
-.chart-card-body { padding:16px 18px; }
+.panel-body { padding:14px 16px; }
 
-.log-card {
-    background:#fff; border-radius:12px;
-    border:1px solid var(--blue-pale);
-    box-shadow:0 2px 8px rgba(26,79,122,0.06); overflow:hidden;
-    display:flex; flex-direction:column;
+/* Log row — single line */
+.log-row {
+    display:flex; align-items:center; gap:8px;
+    padding:5px 0; border-bottom:1px solid rgba(212,234,247,0.45);
+    min-height:34px;
 }
-.log-card-header {
-    padding:14px 18px 12px; border-bottom:1px solid var(--blue-pale);
-    font-size:12px; font-weight:700; color:var(--blue-deep);
-    text-transform:uppercase; letter-spacing:0.06em;
-    flex-shrink:0; display:flex; align-items:center; justify-content:space-between;
-    flex-wrap:wrap; gap:8px;
+.log-row:last-child { border-bottom:none; }
+.log-type-dot {
+    width:26px; height:26px; border-radius:7px; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center; font-size:11px;
 }
-.log-scroll { overflow-y:auto; flex:1; padding:12px 16px; max-height:600px; }
-
-.log-entry {
-    display:flex; gap:10px;
-    padding:10px 0; border-bottom:1px solid rgba(212,234,247,0.5);
+.log-proj-chip {
+    flex-shrink:0; max-width:130px;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    font-size:11px; font-weight:700;
+    padding:2px 8px; border-radius:4px;
+    background:var(--blue-pale); color:var(--blue-deep);
+    text-decoration:none;
 }
-.log-entry:last-child { border-bottom:none; }
-.log-icon {
-    width:28px; height:28px; border-radius:8px; flex-shrink:0;
-    display:flex; align-items:center; justify-content:center;
-    font-size:12px; margin-top:1px;
+.log-proj-chip:hover { background:#bfdbfe; color:var(--blue-deep); }
+.log-text {
+    flex:1; min-width:0;
+    font-size:11.5px; color:var(--text-dark);
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
 }
-.log-body { flex:1; min-width:0; }
-.log-project { font-size:11.5px; font-weight:700; color:var(--blue-deep); margin-bottom:2px; }
-.log-meta    { font-size:10.5px; color:var(--text-muted); margin-bottom:3px; }
-.log-label   { font-size:12px; color:var(--text-dark); word-break:break-word; line-height:1.45; }
-
+.log-meta {
+    flex-shrink:0; display:flex; align-items:center; gap:5px;
+    font-size:10.5px; color:var(--text-muted); white-space:nowrap;
+}
 .dept-pill {
     display:inline-flex; align-items:center;
-    padding:1px 7px; border-radius:20px;
-    font-size:10px; font-weight:700; white-space:nowrap;
+    padding:1px 6px; border-radius:20px;
+    font-size:9.5px; font-weight:700; white-space:nowrap;
 }
+.log-scroll { overflow-y:auto; max-height:560px; padding:6px 14px; }
 
-/* Toggle button */
-.week-toggle {
+/* Toggle */
+.week-btn {
     display:inline-flex; align-items:center; gap:7px;
     padding:8px 18px; border-radius:8px; font-size:13px; font-weight:600;
     cursor:pointer; border:1.5px solid var(--blue-pale);
-    background:#fff; color:var(--blue-deep);
-    transition:all 0.15s;
+    background:#fff; color:var(--blue-deep); transition:all 0.15s;
+    user-select:none;
 }
-.week-toggle.active {
-    background:var(--blue-deep); color:#fff; border-color:var(--blue-deep);
-}
-.week-toggle:hover:not(.active) { background:var(--snow); }
+.week-btn.on { background:var(--blue-deep); color:#fff; border-color:var(--blue-deep); }
+.week-btn:hover:not(.on) { background:var(--snow); }
+
+/* Data-table */
+.dtable { width:100%; border-collapse:collapse; font-size:12px; }
+.dtable th { padding:7px 14px; text-align:left; font-size:10px; font-weight:700;
+             color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em;
+             border-bottom:1px solid var(--blue-pale); background:var(--snow); }
+.dtable th.num, .dtable td.num { text-align:center; }
+.dtable td { padding:8px 14px; border-bottom:1px solid rgba(212,234,247,0.4); }
+.dtable tr:last-child td { border-bottom:none; }
 </style>
 
-<!-- ══ Header row: title + toggle ══════════════════════════════ -->
-<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; flex-wrap:wrap; gap:10px;">
+<!-- ══ Top bar ════════════════════════════════════════════════ -->
+<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
     <div>
-        <div style="font-size:11px; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:4px;">管理視角</div>
-        <div style="font-size:13px; color:var(--text-mid);">
-            <span id="mode-label">目前顯示所有專案動態</span>
-        </div>
+        <div style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:3px;">管理視角</div>
+        <div id="modeDesc" style="font-size:13px; color:var(--text-mid);">目前顯示全部專案概況</div>
     </div>
-    <button class="week-toggle" id="weekToggle" onclick="toggleWeekMode()">
+    <button class="week-btn" id="weekBtn" onclick="toggleMode()">
         <i class="bi bi-calendar-week"></i>
-        <span id="toggleText">切換至上週進度</span>
+        <span id="weekBtnTx">切換至上週進度</span>
     </button>
 </div>
 
-<!-- ══ Stat Cards ══════════════════════════════════════════════ -->
-<div style="display:grid; grid-template-columns:repeat(5,1fr); gap:14px; margin-bottom:20px;">
+<!-- ══ Stat Cards ═════════════════════════════════════════════ -->
+<!-- ALL mode -->
+<div id="statsAll" style="display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin-bottom:18px;">
     <div class="stat-card">
         <div class="stat-label">總專案數</div>
         <div class="stat-value" style="color:var(--blue-deep);">{{ summary.total or 0 }}</div>
@@ -152,93 +138,157 @@
         <div class="stat-value" style="color:#7e22ce;">{{ summary.assignee_count or 0 }}</div>
         <div class="stat-sub">有指派專案的人員</div>
     </div>
-    <div class="stat-card" id="weekCard">
+    <div class="stat-card">
         <div class="stat-label">上週有動態</div>
         <div class="stat-value" style="color:#0f766e;">{{ last_week_updated }}</div>
         <div class="stat-sub">{{ last_week_start }} ~ {{ last_week_end }}</div>
     </div>
 </div>
+<!-- WEEK mode -->
+<div id="statsWeek" style="display:none; grid-template-columns:repeat(5,1fr); gap:12px; margin-bottom:18px;">
+    <div class="stat-card week-highlight">
+        <div class="stat-label">有動態的專案</div>
+        <div class="stat-value" style="color:#0f766e;">{{ week_summary.active_projects or 0 }}</div>
+        <div class="stat-sub">{{ last_week_start }} ~ {{ last_week_end }}</div>
+    </div>
+    <div class="stat-card week-highlight">
+        <div class="stat-label">動態總筆數</div>
+        <div class="stat-value" style="color:var(--blue-deep);">{{ week_summary.total_actions or 0 }}</div>
+        <div class="stat-sub">進度 + 留言 + 編輯</div>
+    </div>
+    <div class="stat-card week-highlight">
+        <div class="stat-label">進度更新</div>
+        <div class="stat-value" style="color:#2b7bb9;">{{ week_summary.pulse_count or 0 }}</div>
+        <div class="stat-sub">Pulse 紀錄筆數</div>
+    </div>
+    <div class="stat-card week-highlight">
+        <div class="stat-label">留言 / 編輯</div>
+        <div class="stat-value" style="color:#7e22ce;">{{ (week_summary.comment_count or 0) + (week_summary.edit_count or 0) }}</div>
+        <div class="stat-sub">留言 {{ week_summary.comment_count or 0 }} · 編輯 {{ week_summary.edit_count or 0 }}</div>
+    </div>
+    <div class="stat-card week-highlight">
+        <div class="stat-label">活躍人員</div>
+        <div class="stat-value" style="color:#c2410c;">{{ week_summary.active_users or 0 }}</div>
+        <div class="stat-sub">有操作紀錄的帳號數</div>
+    </div>
+</div>
 
-<!-- ══ Charts ═════════════════════════════════════════════════ -->
-<div style="display:grid; grid-template-columns:5fr 3fr 4fr; gap:14px; margin-bottom:20px;">
-    <div class="chart-card">
-        <div class="chart-card-header">各部門專案狀態分佈</div>
-        <div class="chart-card-body" style="height:280px; position:relative;">
-            <canvas id="deptChart"></canvas>
+<!-- ══ Charts ════════════════════════════════════════════════ -->
+<div style="display:grid; grid-template-columns:5fr 3fr 4fr; gap:12px; margin-bottom:18px;">
+    <div class="panel">
+        <div class="panel-hd" id="chart1Title">各部門專案狀態分佈</div>
+        <div class="panel-body" style="height:260px; position:relative;">
+            <canvas id="chart1"></canvas>
         </div>
     </div>
-    <div class="chart-card">
-        <div class="chart-card-header">整體狀態</div>
-        <div class="chart-card-body" style="height:280px; position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center;">
-            <canvas id="statusChart" style="max-height:200px;"></canvas>
-            <div style="display:flex; gap:14px; margin-top:10px; flex-wrap:wrap; justify-content:center;">
-                <span style="font-size:11px; color:#6b7280; display:flex; align-items:center; gap:4px;"><span style="width:8px;height:8px;border-radius:50%;background:#6b7280;flex-shrink:0;"></span> NEW</span>
-                <span style="font-size:11px; color:#d97706; display:flex; align-items:center; gap:4px;"><span style="width:8px;height:8px;border-radius:50%;background:#f59e0b;flex-shrink:0;"></span> 進行中</span>
-                <span style="font-size:11px; color:#15803d; display:flex; align-items:center; gap:4px;"><span style="width:8px;height:8px;border-radius:50%;background:#22c55e;flex-shrink:0;"></span> 完成</span>
+    <div class="panel">
+        <div class="panel-hd" id="chart2Title">整體狀態</div>
+        <div class="panel-body" style="height:260px; position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+            <canvas id="chart2" style="max-height:190px;"></canvas>
+            <div id="chart2Legend" style="display:flex; gap:12px; margin-top:10px; flex-wrap:wrap; justify-content:center;">
+                <span style="font-size:11px; color:#6b7280; display:flex; align-items:center; gap:3px;"><span style="width:7px;height:7px;border-radius:50%;background:#9ca3af;flex-shrink:0;"></span> NEW</span>
+                <span style="font-size:11px; color:#d97706; display:flex; align-items:center; gap:3px;"><span style="width:7px;height:7px;border-radius:50%;background:#f59e0b;flex-shrink:0;"></span> 進行中</span>
+                <span style="font-size:11px; color:#15803d; display:flex; align-items:center; gap:3px;"><span style="width:7px;height:7px;border-radius:50%;background:#22c55e;flex-shrink:0;"></span> 完成</span>
             </div>
         </div>
     </div>
-    <div class="chart-card">
-        <div class="chart-card-header">人員負責專案數</div>
-        <div class="chart-card-body" style="height:280px; overflow-y:auto; position:relative;">
-            <canvas id="personChart"></canvas>
+    <div class="panel">
+        <div class="panel-hd" id="chart3Title">人員負責專案數</div>
+        <div class="panel-body" style="height:260px; overflow-y:auto; position:relative;">
+            <canvas id="chart3"></canvas>
         </div>
     </div>
 </div>
 
-<!-- ══ Detail Tables ══════════════════════════════════════════ -->
-<div style="display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:20px;">
-    <div class="chart-card">
-        <div class="chart-card-header">部門專案明細</div>
-        <div style="overflow-x:auto;">
-        <table style="width:100%; border-collapse:collapse; font-size:12.5px;">
-            <thead><tr style="background:var(--snow);">
-                <th style="padding:8px 16px; text-align:left; font-size:10.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em; border-bottom:1px solid var(--blue-pale);">部門</th>
-                <th style="padding:8px 16px; text-align:center; font-size:10.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em; border-bottom:1px solid var(--blue-pale);">總計</th>
-                <th style="padding:8px 16px; text-align:center; font-size:10.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em; border-bottom:1px solid var(--blue-pale);">NEW</th>
-                <th style="padding:8px 16px; text-align:center; font-size:10.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em; border-bottom:1px solid var(--blue-pale);">進行中</th>
-                <th style="padding:8px 16px; text-align:center; font-size:10.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em; border-bottom:1px solid var(--blue-pale);">完成</th>
+<!-- ══ Detail Tables ═════════════════════════════════════════ -->
+<div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:18px;">
+
+    <!-- Dept table -->
+    <div class="panel">
+        <div class="panel-hd">部門明細</div>
+        <!-- ALL -->
+        <div id="deptTableAll" style="overflow-x:auto;">
+        <table class="dtable">
+            <thead><tr>
+                <th>部門</th><th class="num">總計</th>
+                <th class="num">NEW</th><th class="num">進行中</th><th class="num">完成</th>
             </tr></thead>
             <tbody>
             {% for d in dept_stats %}
-            <tr style="border-bottom:1px solid rgba(212,234,247,0.5);">
-                <td style="padding:9px 16px;">
-                    <span class="dept-pill" style="background:{{ dept_bg.get(d.department,'#f3f4f6') }}; color:{{ dept_colors.get(d.department,'#6b7280') }};">{{ d.department }}</span>
-                </td>
-                <td style="padding:9px 16px; text-align:center; font-weight:700; color:var(--blue-deep);">{{ d.total }}</td>
-                <td style="padding:9px 16px; text-align:center; color:#6b7280;">{{ d.new_count }}</td>
-                <td style="padding:9px 16px; text-align:center; color:#d97706; font-weight:600;">{{ d.process_count }}</td>
-                <td style="padding:9px 16px; text-align:center; color:#15803d; font-weight:600;">{{ d.done_count }}</td>
+            <tr>
+                <td><span class="dept-pill" style="background:{{ dept_bg.get(d.department,'#f3f4f6') }};color:{{ dept_colors.get(d.department,'#6b7280') }};">{{ d.department }}</span></td>
+                <td class="num" style="font-weight:700;color:var(--blue-deep);">{{ d.total }}</td>
+                <td class="num" style="color:#6b7280;">{{ d.new_count }}</td>
+                <td class="num" style="color:#d97706;font-weight:600;">{{ d.process_count }}</td>
+                <td class="num" style="color:#15803d;font-weight:600;">{{ d.done_count }}</td>
             </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        <!-- WEEK -->
+        <div id="deptTableWeek" style="display:none; overflow-x:auto;">
+        <table class="dtable">
+            <thead><tr>
+                <th>部門</th><th class="num">動態數</th>
+                <th class="num">進度</th><th class="num">留言</th><th class="num">編輯</th>
+            </tr></thead>
+            <tbody>
+            {% for d in week_dept_stats %}
+            <tr>
+                <td><span class="dept-pill" style="background:{{ dept_bg.get(d.department,'#f3f4f6') }};color:{{ dept_colors.get(d.department,'#6b7280') }};">{{ d.department }}</span></td>
+                <td class="num" style="font-weight:700;color:var(--blue-deep);">{{ d.total }}</td>
+                <td class="num" style="color:#2b7bb9;font-weight:600;">{{ d.pulse_count }}</td>
+                <td class="num" style="color:#7e22ce;">{{ d.comment_count }}</td>
+                <td class="num" style="color:#d97706;">{{ d.edit_count }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" style="text-align:center;color:var(--text-light);padding:24px;">上週無部門動態</td></tr>
             {% endfor %}
             </tbody>
         </table>
         </div>
     </div>
 
-    <div class="chart-card">
-        <div class="chart-card-header">人員負責明細</div>
-        <div style="overflow-x:auto;">
-        <table style="width:100%; border-collapse:collapse; font-size:12.5px;">
-            <thead><tr style="background:var(--snow);">
-                <th style="padding:8px 16px; text-align:left; font-size:10.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em; border-bottom:1px solid var(--blue-pale);">人員</th>
-                <th style="padding:8px 16px; text-align:left; font-size:10.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em; border-bottom:1px solid var(--blue-pale);">部門</th>
-                <th style="padding:8px 16px; text-align:center; font-size:10.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em; border-bottom:1px solid var(--blue-pale);">專案數</th>
-                <th style="padding:8px 16px; text-align:center; font-size:10.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em; border-bottom:1px solid var(--blue-pale);">進行中</th>
+    <!-- Person table -->
+    <div class="panel">
+        <div class="panel-hd">人員明細</div>
+        <!-- ALL -->
+        <div id="personTableAll" style="overflow-x:auto;">
+        <table class="dtable">
+            <thead><tr>
+                <th>人員</th><th>部門</th>
+                <th class="num">專案數</th><th class="num">進行中</th>
             </tr></thead>
             <tbody>
             {% for p in person_stats %}
-            <tr style="border-bottom:1px solid rgba(212,234,247,0.5);">
-                <td style="padding:9px 16px; font-weight:600; color:var(--blue-deep);">{{ p.assignee_name }}</td>
-                <td style="padding:9px 16px;">
-                    <span class="dept-pill" style="background:{{ dept_bg.get(p.department,'#f3f4f6') }}; color:{{ dept_colors.get(p.department,'#6b7280') }};">{{ p.department or '—' }}</span>
-                </td>
-                <td style="padding:9px 16px; text-align:center; font-weight:700; color:var(--blue-deep);">{{ p.total }}</td>
-                <td style="padding:9px 16px; text-align:center;">
-                    {% if p.in_progress > 0 %}<span style="color:#d97706; font-weight:600;">{{ p.in_progress }}</span>
-                    {% else %}<span style="color:var(--text-light);">—</span>{% endif %}
-                </td>
+            <tr>
+                <td style="font-weight:600;color:var(--blue-deep);">{{ p.assignee_name }}</td>
+                <td><span class="dept-pill" style="background:{{ dept_bg.get(p.department,'#f3f4f6') }};color:{{ dept_colors.get(p.department,'#6b7280') }};">{{ p.department or '—' }}</span></td>
+                <td class="num" style="font-weight:700;color:var(--blue-deep);">{{ p.total }}</td>
+                <td class="num">{% if p.in_progress > 0 %}<span style="color:#d97706;font-weight:600;">{{ p.in_progress }}</span>{% else %}<span style="color:var(--text-light);">—</span>{% endif %}</td>
             </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        </div>
+        <!-- WEEK -->
+        <div id="personTableWeek" style="display:none; overflow-x:auto;">
+        <table class="dtable">
+            <thead><tr>
+                <th>人員</th><th>部門</th>
+                <th class="num">動態數</th><th class="num">涉及專案</th>
+            </tr></thead>
+            <tbody>
+            {% for p in week_person_stats %}
+            <tr>
+                <td style="font-weight:600;color:var(--blue-deep);">{{ p.user_name }}</td>
+                <td><span class="dept-pill" style="background:{{ dept_bg.get(p.department,'#f3f4f6') }};color:{{ dept_colors.get(p.department,'#6b7280') }};">{{ p.department or '—' }}</span></td>
+                <td class="num" style="font-weight:700;color:var(--blue-deep);">{{ p.action_count }}</td>
+                <td class="num" style="color:#0f766e;font-weight:600;">{{ p.project_count }}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="4" style="text-align:center;color:var(--text-light);padding:24px;">上週無人員動態</td></tr>
             {% endfor %}
             </tbody>
         </table>
@@ -246,117 +296,72 @@
     </div>
 </div>
 
-<!-- ══ Unified Activity Log ════════════════════════════════════ -->
-<div class="log-card">
-    <div class="log-card-header">
+<!-- ══ Activity Log ══════════════════════════════════════════ -->
+<div class="panel">
+    <div class="panel-hd">
         <span>
             <i class="bi bi-clock-history me-1" style="font-size:11px;"></i>
-            <span id="logTitle">全部動態記錄</span>
+            <span id="logTitle">全部動態紀錄</span>
         </span>
         <div style="display:flex; align-items:center; gap:12px;">
-            <!-- legend -->
-            <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                <span style="font-size:10.5px; color:#2b7bb9; display:flex; align-items:center; gap:4px;">
-                    <i class="bi bi-activity" style="font-size:10px;"></i> 進度更新
-                </span>
-                <span style="font-size:10.5px; color:#d97706; display:flex; align-items:center; gap:4px;">
-                    <i class="bi bi-pencil-square" style="font-size:10px;"></i> 專案編輯
-                </span>
-                <span style="font-size:10.5px; color:#7e22ce; display:flex; align-items:center; gap:4px;">
-                    <i class="bi bi-chat-left-text" style="font-size:10px;"></i> 留言
-                </span>
-                <span style="font-size:10.5px; color:#0f766e; display:flex; align-items:center; gap:4px;">
-                    <i class="bi bi-diagram-2" style="font-size:10px;"></i> 子專案
-                </span>
+            <div style="display:flex; gap:10px;">
+                <span style="font-size:10.5px;color:#2b7bb9;display:flex;align-items:center;gap:3px;"><i class="bi bi-activity" style="font-size:10px;"></i>進度</span>
+                <span style="font-size:10.5px;color:#d97706;display:flex;align-items:center;gap:3px;"><i class="bi bi-pencil-square" style="font-size:10px;"></i>編輯</span>
+                <span style="font-size:10.5px;color:#7e22ce;display:flex;align-items:center;gap:3px;"><i class="bi bi-chat-left-text" style="font-size:10px;"></i>留言</span>
+                <span style="font-size:10.5px;color:#0f766e;display:flex;align-items:center;gap:3px;"><i class="bi bi-diagram-2" style="font-size:10px;"></i>子專案</span>
             </div>
-            <span id="logCount" style="font-size:11px; font-weight:500; color:var(--text-muted);">{{ all_logs | length }} 筆</span>
+            <span id="logCount" style="font-size:11px;font-weight:500;color:var(--text-muted);">{{ all_logs|length }} 筆</span>
         </div>
     </div>
 
-    <!-- All logs (default visible) -->
-    <div class="log-scroll" id="allLogsPane">
-        {% if all_logs %}
-            {% for log in all_logs %}
-            {% set atype = log.action_type %}
-            {% set acolor = action_colors.get(atype, '#6b7280') %}
-            {% set abg    = action_bg.get(atype, '#f9fafb') %}
-            {% set aicon  = action_icons.get(atype, 'bi-circle') %}
-            <div class="log-entry">
-                <div class="log-icon" style="background:{{ abg }}; color:{{ acolor }};">
-                    <i class="bi {{ aicon }}"></i>
-                </div>
-                <div class="log-body">
-                    <div style="display:flex; align-items:baseline; gap:6px; flex-wrap:wrap; margin-bottom:2px;">
-                        <a href="{{ url_for('project_detail', project_id=log.root_project_id) }}"
-                           class="log-project" style="color:var(--blue-deep); text-decoration:none; font-size:12px;">
-                            {{ log.root_title }}
-                        </a>
-                        {% if log.project_title != log.root_title %}
-                        <span style="font-size:10px; color:var(--text-light);">↳ {{ log.project_title }}</span>
-                        {% endif %}
-                    </div>
-                    <div class="log-meta">
-                        <span style="font-weight:600; color:var(--text-dark);">{{ log.user_name }}</span>
-                        {% if log.user_dept %}
-                        <span class="dept-pill" style="background:{{ dept_bg.get(log.user_dept,'#f3f4f6') }}; color:{{ dept_colors.get(log.user_dept,'#6b7280') }}; font-size:9px; margin-left:2px;">{{ log.user_dept }}</span>
-                        {% endif %}
-                        <span style="margin-left:4px;">· {{ log.created_at | dtfmt }}</span>
-                    </div>
-                    <div class="log-label" style="color:{{ acolor }}; font-weight:500;">
-                        {{ log.action_label }}
-                    </div>
-                </div>
+    <!-- ALL logs -->
+    <div class="log-scroll" id="logPaneAll">
+        {% for log in all_logs %}
+        {% set at = log.action_type %}
+        <div class="log-row">
+            <div class="log-type-dot" style="background:{{ abg.get(at,'#f9fafb') }};color:{{ acolor.get(at,'#6b7280') }};">
+                <i class="bi {{ aicon.get(at,'bi-circle') }}"></i>
             </div>
-            {% endfor %}
+            <a class="log-proj-chip" href="{{ url_for('project_detail', project_id=log.root_project_id) }}">{{ log.root_title }}</a>
+            <div class="log-text" style="color:{{ acolor.get(at,'var(--text-dark)') }};">{{ log.action_label }}</div>
+            <div class="log-meta">
+                {% if log.user_dept %}<span class="dept-pill" style="background:{{ dept_bg.get(log.user_dept,'#f3f4f6') }};color:{{ dept_colors.get(log.user_dept,'#6b7280') }};">{{ log.user_dept }}</span>{% endif %}
+                <span>{{ log.user_name }}</span>
+                <span style="color:var(--text-light);">·</span>
+                <span>{{ log.created_at | dtshort }}</span>
+            </div>
+        </div>
         {% else %}
-            <div style="padding:48px 0; text-align:center; color:var(--text-muted);">
-                <i class="bi bi-inbox" style="font-size:28px; opacity:0.3; display:block; margin-bottom:8px;"></i>
-                <div style="font-size:13px; font-weight:600;">尚無任何動態記錄</div>
-            </div>
-        {% endif %}
+        <div style="padding:40px 0;text-align:center;color:var(--text-muted);">
+            <i class="bi bi-inbox" style="font-size:26px;opacity:0.3;display:block;margin-bottom:8px;"></i>
+            <div style="font-size:13px;font-weight:600;">尚無動態紀錄</div>
+        </div>
+        {% endfor %}
     </div>
 
-    <!-- Last week logs (hidden by default) -->
-    <div class="log-scroll" id="weekLogsPane" style="display:none;">
-        {% if last_week_logs %}
-            {% for log in last_week_logs %}
-            {% set atype = log.action_type %}
-            {% set acolor = action_colors.get(atype, '#6b7280') %}
-            {% set abg    = action_bg.get(atype, '#f9fafb') %}
-            {% set aicon  = action_icons.get(atype, 'bi-circle') %}
-            <div class="log-entry">
-                <div class="log-icon" style="background:{{ abg }}; color:{{ acolor }};">
-                    <i class="bi {{ aicon }}"></i>
-                </div>
-                <div class="log-body">
-                    <div style="display:flex; align-items:baseline; gap:6px; flex-wrap:wrap; margin-bottom:2px;">
-                        <a href="{{ url_for('project_detail', project_id=log.root_project_id) }}"
-                           class="log-project" style="color:var(--blue-deep); text-decoration:none; font-size:12px;">
-                            {{ log.root_title }}
-                        </a>
-                        {% if log.project_title != log.root_title %}
-                        <span style="font-size:10px; color:var(--text-light);">↳ {{ log.project_title }}</span>
-                        {% endif %}
-                    </div>
-                    <div class="log-meta">
-                        <span style="font-weight:600; color:var(--text-dark);">{{ log.user_name }}</span>
-                        {% if log.user_dept %}
-                        <span class="dept-pill" style="background:{{ dept_bg.get(log.user_dept,'#f3f4f6') }}; color:{{ dept_colors.get(log.user_dept,'#6b7280') }}; font-size:9px; margin-left:2px;">{{ log.user_dept }}</span>
-                        {% endif %}
-                        <span style="margin-left:4px;">· {{ log.created_at | dtfmt }}</span>
-                    </div>
-                    <div class="log-label" style="color:{{ acolor }}; font-weight:500;">
-                        {{ log.action_label }}
-                    </div>
-                </div>
+    <!-- WEEK logs -->
+    <div class="log-scroll" id="logPaneWeek" style="display:none;">
+        {% for log in last_week_logs %}
+        {% set at = log.action_type %}
+        <div class="log-row">
+            <div class="log-type-dot" style="background:{{ abg.get(at,'#f9fafb') }};color:{{ acolor.get(at,'#6b7280') }};">
+                <i class="bi {{ aicon.get(at,'bi-circle') }}"></i>
             </div>
-            {% endfor %}
+            <a class="log-proj-chip" href="{{ url_for('project_detail', project_id=log.root_project_id) }}">{{ log.root_title }}</a>
+            <div class="log-text" style="color:{{ acolor.get(at,'var(--text-dark)') }};">{{ log.action_label }}</div>
+            <div class="log-meta">
+                {% if log.user_dept %}<span class="dept-pill" style="background:{{ dept_bg.get(log.user_dept,'#f3f4f6') }};color:{{ dept_colors.get(log.user_dept,'#6b7280') }};">{{ log.user_dept }}</span>{% endif %}
+                <span>{{ log.user_name }}</span>
+                <span style="color:var(--text-light);">·</span>
+                <span>{{ log.created_at | dtshort }}</span>
+            </div>
+        </div>
         {% else %}
-            <div style="padding:48px 0; text-align:center; color:var(--text-muted);">
-                <i class="bi bi-calendar-x" style="font-size:28px; opacity:0.3; display:block; margin-bottom:8px;"></i>
-                <div style="font-size:13px; font-weight:600;">上週（{{ last_week_start }} ~ {{ last_week_end }}）無任何動態</div>
-            </div>
-        {% endif %}
+        <div style="padding:40px 0;text-align:center;color:var(--text-muted);">
+            <i class="bi bi-calendar-x" style="font-size:26px;opacity:0.3;display:block;margin-bottom:8px;"></i>
+            <div style="font-size:13px;font-weight:600;">上週（{{ last_week_start }} ~ {{ last_week_end }}）無任何動態</div>
+        </div>
+        {% endfor %}
     </div>
 </div>
 
@@ -368,111 +373,153 @@
 Chart.defaults.font.family = "'Inter','Microsoft JhengHei',sans-serif";
 Chart.defaults.color = '#6A8EA0';
 
-/* ── Week toggle ── */
-let _weekMode = false;
-function toggleWeekMode() {
-    _weekMode = !_weekMode;
-    const btn      = document.getElementById('weekToggle');
-    const toggleTx = document.getElementById('toggleText');
-    const allPane  = document.getElementById('allLogsPane');
-    const weekPane = document.getElementById('weekLogsPane');
-    const title    = document.getElementById('logTitle');
-    const count    = document.getElementById('logCount');
-    const modeLabel= document.getElementById('mode-label');
-    const weekCard = document.getElementById('weekCard');
-
-    if (_weekMode) {
-        btn.classList.add('active');
-        toggleTx.textContent = '返回全部動態';
-        allPane.style.display  = 'none';
-        weekPane.style.display = 'block';
-        title.textContent = '上週動態記錄（{{ last_week_start }} ~ {{ last_week_end }}）';
-        count.textContent = '{{ last_week_logs | length }} 筆';
-        modeLabel.textContent = '目前顯示上週（{{ last_week_start }} ~ {{ last_week_end }}）動態';
-        weekCard.style.outline = '2px solid #0f766e';
-    } else {
-        btn.classList.remove('active');
-        toggleTx.textContent = '切換至上週進度';
-        allPane.style.display  = 'block';
-        weekPane.style.display = 'none';
-        title.textContent = '全部動態記錄';
-        count.textContent = '{{ all_logs | length }} 筆';
-        modeLabel.textContent = '目前顯示所有專案動態';
-        weekCard.style.outline = '';
+/* ── Chart data from server ── */
+const DATA = {
+    all: {
+        dept:   {{ dept_chart        | tojson }},
+        status: {{ status_chart      | tojson }},
+        person: {{ person_chart      | tojson }},
+    },
+    week: {
+        dept:   {{ week_dept_chart   | tojson }},
+        action: {{ week_action_chart | tojson }},
+        person: {{ week_person_chart | tojson }},
     }
-}
+};
 
-/* ── Dept stacked bar ── */
-(function() {
-    const data = {{ dept_chart | tojson }};
-    const ctx  = document.getElementById('deptChart');
-    if (!ctx || !data.labels.length) return;
-    new Chart(ctx, {
+/* ── Chart instances ── */
+let C1, C2, C3;
+
+function mkChart1(d) {
+    if (C1) C1.destroy();
+    const ctx = document.getElementById('chart1');
+    C1 = new Chart(ctx, {
         type: 'bar',
-        data: {
-            labels: data.labels,
-            datasets: [
-                { label:'NEW',    data:data.new,     backgroundColor:'rgba(107,114,128,0.65)', borderRadius:0 },
-                { label:'進行中', data:data.process, backgroundColor:'rgba(245,158,11,0.80)',  borderRadius:0 },
-                { label:'完成',   data:data.done,    backgroundColor:'rgba(34,197,94,0.80)',   borderRadius:4 },
-            ]
-        },
+        data: { labels: d.labels, datasets: d.datasets },
         options: {
             responsive:true, maintainAspectRatio:false,
             plugins: {
-                legend: { position:'bottom', labels:{boxWidth:10, font:{size:11}} },
-                tooltip: { mode:'index', intersect:false },
+                legend:{ position:'bottom', labels:{ boxWidth:10, font:{size:11} } },
+                tooltip:{ mode:'index', intersect:false },
             },
             scales: {
-                x: { stacked:true, grid:{display:false}, ticks:{font:{size:11}} },
-                y: { stacked:true, beginAtZero:true, ticks:{stepSize:1,font:{size:11}}, grid:{color:'rgba(212,234,247,0.6)'} },
+                x:{ stacked:true, grid:{display:false}, ticks:{font:{size:11}} },
+                y:{ stacked:true, beginAtZero:true, ticks:{stepSize:1,font:{size:11}}, grid:{color:'rgba(212,234,247,0.6)'} },
             }
         }
     });
-})();
+}
 
-/* ── Status donut ── */
-(function() {
-    const data  = {{ status_chart | tojson }};
-    const ctx   = document.getElementById('statusChart');
-    if (!ctx) return;
-    const total = data.new + data.process + data.done;
-    if (total === 0) return;
-    new Chart(ctx, {
-        type: 'doughnut',
-        data: {
-            labels: ['NEW','進行中','完成'],
-            datasets: [{ data:[data.new,data.process,data.done], backgroundColor:['#9ca3af','#f59e0b','#22c55e'], borderWidth:2, borderColor:'#fff', hoverOffset:4 }]
-        },
-        options: {
-            responsive:true, maintainAspectRatio:false, cutout:'68%',
-            plugins: {
+function mkChart2(d) {
+    if (C2) C2.destroy();
+    const ctx   = document.getElementById('chart2');
+    const total = d.data.reduce((a,b)=>a+b,0);
+    if (!total) return;
+    C2 = new Chart(ctx, {
+        type:'doughnut',
+        data:{ labels:d.labels, datasets:[{ data:d.data, backgroundColor:d.colors, borderWidth:2, borderColor:'#fff', hoverOffset:4 }] },
+        options:{
+            responsive:true, maintainAspectRatio:false, cutout:'66%',
+            plugins:{
                 legend:{display:false},
-                tooltip:{ callbacks:{ label: c=>' '+c.label+': '+c.raw+' ('+Math.round(c.raw/total*100)+'%)' } }
+                tooltip:{ callbacks:{ label:c=>' '+c.label+': '+c.raw+' ('+Math.round(c.raw/total*100)+'%)' } }
             }
         }
     });
-})();
+}
 
-/* ── Person horizontal bar ── */
-(function() {
-    const data = {{ person_chart | tojson }};
-    const ctx  = document.getElementById('personChart');
-    if (!ctx || !data.labels.length) return;
-    const barH = Math.max(28, Math.min(44, 240/data.labels.length));
-    ctx.parentElement.style.height = Math.max(240, data.labels.length*(barH+6)+40)+'px';
-    new Chart(ctx, {
+function mkChart3(d) {
+    if (C3) C3.destroy();
+    const ctx = document.getElementById('chart3');
+    if (!d.labels.length) return;
+    const barH = Math.max(24, Math.min(40, 220/d.labels.length));
+    ctx.parentElement.style.height = Math.max(220, d.labels.length*(barH+6)+40)+'px';
+    C3 = new Chart(ctx, {
         type:'bar',
-        data: { labels:data.labels, datasets:[{ label:'專案數', data:data.totals, backgroundColor:'rgba(43,123,185,0.75)', borderRadius:4, barThickness:barH }] },
-        options: {
+        data:{ labels:d.labels, datasets:[{ label:d.label||'數量', data:d.totals, backgroundColor:d.color||'rgba(43,123,185,0.75)', borderRadius:4, barThickness:barH }] },
+        options:{
             indexAxis:'y', responsive:true, maintainAspectRatio:false,
-            plugins: { legend:{display:false}, tooltip:{ callbacks:{label:c=>' '+c.raw+' 個專案'} } },
-            scales: {
+            plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label:c=>' '+c.raw+d.unit } } },
+            scales:{
                 x:{ beginAtZero:true, ticks:{stepSize:1,font:{size:11}}, grid:{color:'rgba(212,234,247,0.6)'} },
                 y:{ grid:{display:false}, ticks:{font:{size:11}} },
             }
         }
     });
-})();
+}
+
+/* ── Render ALL mode charts ── */
+function renderAll() {
+    const d = DATA.all;
+    mkChart1({ labels: d.dept.labels, datasets:[
+        { label:'NEW',    data:d.dept.new,     backgroundColor:'rgba(107,114,128,0.65)', borderRadius:0 },
+        { label:'進行中', data:d.dept.process, backgroundColor:'rgba(245,158,11,0.80)',  borderRadius:0 },
+        { label:'完成',   data:d.dept.done,    backgroundColor:'rgba(34,197,94,0.80)',   borderRadius:4 },
+    ]});
+    mkChart2({ labels:['NEW','進行中','完成'], data:[d.status.new,d.status.process,d.status.done], colors:['#9ca3af','#f59e0b','#22c55e'] });
+    mkChart3({ labels:d.person.labels, totals:d.person.totals, label:'專案數', color:'rgba(43,123,185,0.75)', unit:' 個專案' });
+    document.getElementById('chart2Legend').innerHTML = `
+        <span style="font-size:11px;color:#6b7280;display:flex;align-items:center;gap:3px;"><span style="width:7px;height:7px;border-radius:50%;background:#9ca3af;flex-shrink:0;"></span> NEW</span>
+        <span style="font-size:11px;color:#d97706;display:flex;align-items:center;gap:3px;"><span style="width:7px;height:7px;border-radius:50%;background:#f59e0b;flex-shrink:0;"></span> 進行中</span>
+        <span style="font-size:11px;color:#15803d;display:flex;align-items:center;gap:3px;"><span style="width:7px;height:7px;border-radius:50%;background:#22c55e;flex-shrink:0;"></span> 完成</span>`;
+}
+
+/* ── Render WEEK mode charts ── */
+function renderWeek() {
+    const d = DATA.week;
+    mkChart1({ labels: d.dept.labels, datasets:[
+        { label:'進度',   data:d.dept.pulse,   backgroundColor:'rgba(43,123,185,0.80)',  borderRadius:0 },
+        { label:'留言',   data:d.dept.comment, backgroundColor:'rgba(126,34,206,0.65)',  borderRadius:0 },
+        { label:'編輯',   data:d.dept.edit,    backgroundColor:'rgba(245,158,11,0.75)',  borderRadius:4 },
+    ]});
+    const ac = d.action;
+    mkChart2({ labels:['進度更新','留言','編輯','子專案'], data:[ac.pulse,ac.comment,ac.edit,ac.sub_project], colors:['#2b7bb9','#7e22ce','#d97706','#0f766e'] });
+    mkChart3({ labels:d.person.labels, totals:d.person.totals, label:'動態數', color:'rgba(15,118,110,0.70)', unit:' 筆' });
+    document.getElementById('chart2Legend').innerHTML = `
+        <span style="font-size:11px;color:#2b7bb9;display:flex;align-items:center;gap:3px;"><span style="width:7px;height:7px;border-radius:50%;background:#2b7bb9;flex-shrink:0;"></span> 進度</span>
+        <span style="font-size:11px;color:#7e22ce;display:flex;align-items:center;gap:3px;"><span style="width:7px;height:7px;border-radius:50%;background:#7e22ce;flex-shrink:0;"></span> 留言</span>
+        <span style="font-size:11px;color:#d97706;display:flex;align-items:center;gap:3px;"><span style="width:7px;height:7px;border-radius:50%;background:#d97706;flex-shrink:0;"></span> 編輯</span>
+        <span style="font-size:11px;color:#0f766e;display:flex;align-items:center;gap:3px;"><span style="width:7px;height:7px;border-radius:50%;background:#0f766e;flex-shrink:0;"></span> 子專案</span>`;
+}
+
+/* ── Toggle ── */
+let weekMode = false;
+
+function toggleMode() {
+    weekMode = !weekMode;
+    const btn = document.getElementById('weekBtn');
+    btn.classList.toggle('on', weekMode);
+    document.getElementById('weekBtnTx').textContent = weekMode ? '返回全部概況' : '切換至上週進度';
+    document.getElementById('modeDesc').textContent  = weekMode
+        ? '目前顯示上週（{{ last_week_start }} ~ {{ last_week_end }}）動態'
+        : '目前顯示全部專案概況';
+
+    // Stats
+    document.getElementById('statsAll').style.display  = weekMode ? 'none'  : 'grid';
+    document.getElementById('statsWeek').style.display = weekMode ? 'grid'  : 'none';
+
+    // Tables
+    document.getElementById('deptTableAll').style.display    = weekMode ? 'none'  : 'block';
+    document.getElementById('deptTableWeek').style.display   = weekMode ? 'block' : 'none';
+    document.getElementById('personTableAll').style.display  = weekMode ? 'none'  : 'block';
+    document.getElementById('personTableWeek').style.display = weekMode ? 'block' : 'none';
+
+    // Logs
+    document.getElementById('logPaneAll').style.display  = weekMode ? 'none'  : 'block';
+    document.getElementById('logPaneWeek').style.display = weekMode ? 'block' : 'none';
+    document.getElementById('logTitle').textContent = weekMode ? '上週動態紀錄（{{ last_week_start }} ~ {{ last_week_end }}）' : '全部動態紀錄';
+    document.getElementById('logCount').textContent = weekMode ? '{{ last_week_logs|length }} 筆' : '{{ all_logs|length }} 筆';
+
+    // Chart titles
+    document.getElementById('chart1Title').textContent = weekMode ? '各部門上週動態分類' : '各部門專案狀態分佈';
+    document.getElementById('chart2Title').textContent = weekMode ? '上週動態類型分佈'   : '整體狀態';
+    document.getElementById('chart3Title').textContent = weekMode ? '人員上週動態數'     : '人員負責專案數';
+
+    // Redraw charts
+    weekMode ? renderWeek() : renderAll();
+}
+
+/* ── Init ── */
+renderAll();
 </script>
 {% endblock %}
