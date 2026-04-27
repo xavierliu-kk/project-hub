@@ -160,6 +160,41 @@
         align-self: flex-end;
     }
     .filter-clear-btn:hover { background: var(--blue-pale); color: var(--blue-deep); border-color: var(--blue-mid); }
+
+    /* Priority badge */
+    .priority-badge {
+        display: inline-flex; align-items: center; gap: 4px;
+        padding: 2px 8px; border-radius: 20px;
+        font-size: 11px; font-weight: 600; cursor: pointer;
+        transition: opacity 0.12s; white-space: nowrap;
+    }
+    .priority-badge:hover { opacity: 0.75; }
+    .priority-badge.readonly { cursor: default; }
+    .priority-badge.readonly:hover { opacity: 1; }
+    .priority-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+
+    .priority-high   { background:#fee2e2; color:#dc2626; }
+    .priority-medium { background:#fef3c7; color:#d97706; }
+    .priority-low    { background:#f3f4f6; color:#6b7280; }
+    .priority-dot-high   { background:#dc2626; }
+    .priority-dot-medium { background:#d97706; }
+    .priority-dot-low    { background:#9ca3af; }
+
+    /* Priority inline dropdown */
+    .priority-menu {
+        display: none; position: absolute; z-index: 300;
+        background: #fff; border: 1px solid var(--blue-pale);
+        border-radius: 8px; box-shadow: 0 6px 20px rgba(26,79,122,0.12);
+        padding: 4px 0; min-width: 110px;
+    }
+    .priority-menu.open { display: block; }
+    .priority-menu-item {
+        display: flex; align-items: center; gap: 7px;
+        padding: 7px 12px; font-size: 12.5px; cursor: pointer;
+        transition: background 0.1s;
+    }
+    .priority-menu-item:hover { background: var(--blue-pale); }
+    .priority-wrap { position: relative; display: inline-block; }
 </style>
 
 <div class="card" style="overflow:hidden;">
@@ -277,6 +312,15 @@
                            style="font-size:9px; opacity:{{ '1' if sort_by==col else '0.4' }};"></i>
                     </a>
                 </th>
+                <th style="width:10%;">
+                    {% set col = 'priority' %}
+                    <a href="{{ url_for('project_list', sort=col, dir=(next_dir if sort_by==col else 'desc')) }}"
+                       class="{{ 'active' if sort_by == col else '' }}">
+                        重要性
+                        <i class="bi bi-chevron-{{ 'down' if (sort_by==col and sort_dir=='asc') else ('up' if (sort_by==col and sort_dir=='desc') else 'expand') }}"
+                           style="font-size:9px; opacity:{{ '1' if sort_by==col else '0.4' }};"></i>
+                    </a>
+                </th>
             </tr>
         </thead>
         <tbody>
@@ -286,6 +330,7 @@
             {% set p_pulse = pulse_status.get(p.latest_pulse) %}
 
             <!-- 母專案 row -->
+            {% set can_edit_p = session.get('user_id') and (session['user_id'] == p.creator_id or session['user_id'] == p.assignee_id) %}
             <tr class="row-parent"
                 data-pid="{{ p.id }}"
                 data-title="{{ p.title | lower }}"
@@ -348,6 +393,30 @@
                         <span style="color:var(--text-light);">—</span>
                     {% endif %}
                 </td>
+                <td onclick="event.stopPropagation();">
+                    {% set pv = p.priority or 'low' %}
+                    <div class="priority-wrap">
+                        <span class="priority-badge priority-{{ pv }} {{ '' if can_edit_p else 'readonly' }}"
+                              id="pbadge-{{ p.id }}"
+                              {% if can_edit_p %}onclick="togglePriorityMenu(event, {{ p.id }})"{% endif %}>
+                            <span class="priority-dot priority-dot-{{ pv }}" id="pdot-{{ p.id }}"></span>
+                            <span id="plabel-{{ p.id }}">{{ {'high':'HIGH','medium':'MEDIUM','low':'LOW'}[pv] }}</span>
+                        </span>
+                        {% if can_edit_p %}
+                        <div class="priority-menu" id="pmenu-{{ p.id }}">
+                            <div class="priority-menu-item" onclick="setPriority({{ p.id }}, 'high')">
+                                <span class="priority-dot priority-dot-high"></span> HIGH
+                            </div>
+                            <div class="priority-menu-item" onclick="setPriority({{ p.id }}, 'medium')">
+                                <span class="priority-dot priority-dot-medium"></span> MEDIUM
+                            </div>
+                            <div class="priority-menu-item" onclick="setPriority({{ p.id }}, 'low')">
+                                <span class="priority-dot priority-dot-low"></span> LOW
+                            </div>
+                        </div>
+                        {% endif %}
+                    </div>
+                </td>
             </tr>
 
             <!-- 子專案 rows -->
@@ -395,6 +464,13 @@
                     {% endif %}
                 </td>
                 <td><span style="color:var(--text-light);">—</span></td>
+                <td>
+                    {% set cv = child.priority or 'low' %}
+                    <span class="priority-badge priority-{{ cv }} readonly">
+                        <span class="priority-dot priority-dot-{{ cv }}"></span>
+                        {{ {'high':'HIGH','medium':'MEDIUM','low':'LOW'}[cv] }}
+                    </span>
+                </td>
             </tr>
             {% endfor %}
 
@@ -505,6 +581,39 @@ document.addEventListener('click', function(e) {
         document.querySelectorAll('.multi-select-dropdown').forEach(d => d.classList.remove('open'));
         document.querySelectorAll('.multi-select-btn').forEach(b => b.classList.remove('open'));
     }
+    if (!e.target.closest('.priority-wrap')) {
+        document.querySelectorAll('.priority-menu').forEach(m => m.classList.remove('open'));
+    }
 });
+
+/* ── Priority inline edit ── */
+function togglePriorityMenu(e, pid) {
+    e.stopPropagation();
+    const menu = document.getElementById('pmenu-' + pid);
+    const isOpen = menu.classList.contains('open');
+    document.querySelectorAll('.priority-menu').forEach(m => m.classList.remove('open'));
+    if (!isOpen) menu.classList.add('open');
+}
+
+const PRIORITY_LABELS = { high: 'HIGH', medium: 'MEDIUM', low: 'LOW' };
+
+function setPriority(pid, priority) {
+    fetch('/project/' + pid + '/priority', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ priority: priority })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (!data.ok) return;
+        const badge = document.getElementById('pbadge-' + pid);
+        const dot   = document.getElementById('pdot-'   + pid);
+        const label = document.getElementById('plabel-' + pid);
+        badge.className = 'priority-badge priority-' + priority;
+        dot.className   = 'priority-dot priority-dot-' + priority;
+        label.textContent = PRIORITY_LABELS[priority];
+        document.getElementById('pmenu-' + pid).classList.remove('open');
+    });
+}
 </script>
 {% endblock %}

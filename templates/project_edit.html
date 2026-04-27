@@ -90,6 +90,16 @@
                               rows="3" style="resize:vertical;">{{ project.benefit or '' }}</textarea>
                 </div>
 
+                <!-- 重要性 -->
+                <div class="mb-3">
+                    <label for="priority" class="form-label">重要性</label>
+                    <select class="form-select" id="priority" name="priority">
+                        <option value="low"    {% if (project.priority or 'low') == 'low'    %}selected{% endif %}>LOW</option>
+                        <option value="medium" {% if (project.priority or 'low') == 'medium' %}selected{% endif %}>MEDIUM</option>
+                        <option value="high"   {% if (project.priority or 'low') == 'high'   %}selected{% endif %}>HIGH</option>
+                    </select>
+                </div>
+
                 <div style="display:flex; gap:8px; margin-top:8px;">
                     <button type="submit" class="btn btn-dark px-4 py-2">
                         <i class="bi bi-check me-1" style="font-size:11px;"></i>{{ t('save_changes') }}

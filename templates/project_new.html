@@ -97,6 +97,16 @@
                               style="resize:vertical;"></textarea>
                 </div>
 
+                <!-- 重要性 -->
+                <div class="mb-3">
+                    <label for="priority" class="form-label">重要性</label>
+                    <select class="form-select" id="priority" name="priority">
+                        <option value="low" selected>LOW（預設）</option>
+                        <option value="medium">MEDIUM</option>
+                        <option value="high">HIGH</option>
+                    </select>
+                </div>
+
                 <div style="display:flex; gap:8px; margin-top:8px;">
                     <button type="submit" class="btn btn-dark px-4 py-2">
                         <i class="bi bi-check me-1" style="font-size:11px;"></i>{{ t('create_btn') }}

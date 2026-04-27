@@ -148,6 +148,7 @@ def init_db():
     # Add new columns to existing tables (idempotent)
     c.execute('ALTER TABLE projects ADD COLUMN IF NOT EXISTS launch_date DATE')
     c.execute('ALTER TABLE projects ADD COLUMN IF NOT EXISTS benefit TEXT')
+    c.execute("ALTER TABLE projects ADD COLUMN IF NOT EXISTS priority VARCHAR(10) NOT NULL DEFAULT 'low'")
 
     c.execute('''
         CREATE TABLE IF NOT EXISTS comments (
@@ -429,6 +430,9 @@ def project_new():
         assignee_id = request.form.get('assignee_id') or None
         launch_date = request.form.get('launch_date') or None
         benefit     = request.form.get('benefit', '').strip() or None
+        priority    = request.form.get('priority', 'low')
+        if priority not in ('high', 'medium', 'low'):
+            priority = 'low'
 
         if not title:
             flash(_t('flash_project_empty'), 'danger')
@@ -436,9 +440,9 @@ def project_new():
                                    users=_get_all_users(c))
 
         c.execute(
-            '''INSERT INTO projects (title, description, creator_id, assignee_id, parent_id, launch_date, benefit)
-               VALUES (%s, %s, %s, %s, NULL, %s, %s)''',
-            (title, description, session['user_id'], assignee_id, launch_date, benefit)
+            '''INSERT INTO projects (title, description, creator_id, assignee_id, parent_id, launch_date, benefit, priority)
+               VALUES (%s, %s, %s, %s, NULL, %s, %s, %s)''',
+            (title, description, session['user_id'], assignee_id, launch_date, benefit, priority)
         )
         conn.commit()
         release_db(conn)
@@ -473,6 +477,9 @@ def sub_project_new(project_id):
         assignee_id = request.form.get('assignee_id') or None
         launch_date = request.form.get('launch_date') or None
         benefit     = request.form.get('benefit', '').strip() or None
+        priority    = request.form.get('priority', 'low')
+        if priority not in ('high', 'medium', 'low'):
+            priority = 'low'
 
         if not title:
             flash(_t('flash_sub_name_empty'), 'danger')
@@ -480,9 +487,9 @@ def sub_project_new(project_id):
                                    users=_get_all_users(c))
 
         c.execute(
-            '''INSERT INTO projects (title, description, creator_id, assignee_id, parent_id, launch_date, benefit)
-               VALUES (%s, %s, %s, %s, %s, %s, %s)''',
-            (title, description, session['user_id'], assignee_id, project_id, launch_date, benefit)
+            '''INSERT INTO projects (title, description, creator_id, assignee_id, parent_id, launch_date, benefit, priority)
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s)''',
+            (title, description, session['user_id'], assignee_id, project_id, launch_date, benefit, priority)
         )
         conn.commit()
         release_db(conn)
@@ -595,6 +602,9 @@ def project_edit(project_id):
         assignee_id = request.form.get('assignee_id') or None
         launch_date = request.form.get('launch_date') or None
         benefit     = request.form.get('benefit', '').strip() or None
+        priority    = request.form.get('priority', 'low')
+        if priority not in ('high', 'medium', 'low'):
+            priority = 'low'
 
         if not title:
             flash(_t('flash_project_empty'), 'danger')
@@ -604,9 +614,9 @@ def project_edit(project_id):
         c.execute(
             '''UPDATE projects
                SET title=%s, description=%s, assignee_id=%s, launch_date=%s, benefit=%s,
-                   updated_at=CURRENT_TIMESTAMP
+                   priority=%s, updated_at=CURRENT_TIMESTAMP
                WHERE id=%s''',
-            (title, description, assignee_id, launch_date, benefit, project_id)
+            (title, description, assignee_id, launch_date, benefit, priority, project_id)
         )
         conn.commit()
         release_db(conn)
@@ -668,6 +678,7 @@ ALLOWED_SORT_COLS = {
     'department':  'ua.department',
     'status':      'latest_pulse',
     'launch_date': 'p.launch_date',
+    'priority':    "CASE p.priority WHEN 'high' THEN 3 WHEN 'medium' THEN 2 ELSE 1 END",
 }
 
 @app.route('/projects/list')
@@ -689,6 +700,7 @@ def project_list():
     c.execute(f'''
         SELECT
             p.id, p.title, p.launch_date, p.parent_id,
+            p.priority, p.creator_id, p.assignee_id,
             ua.name AS assignee_name,
             ua.department AS assignee_department,
             (SELECT pp.status FROM project_pulse pp
@@ -703,6 +715,7 @@ def project_list():
     c.execute('''
         SELECT
             p.id, p.title, p.launch_date, p.parent_id,
+            p.priority, p.creator_id, p.assignee_id,
             ua.name AS assignee_name,
             ua.department AS assignee_department,
             (SELECT pp.status FROM project_pulse pp
@@ -744,6 +757,34 @@ def project_list():
         departments=departments,
         all_users=all_users,
     )
+
+
+@app.route('/project/<int:project_id>/priority', methods=['POST'])
+@login_required
+def project_set_priority(project_id):
+    data     = request.get_json() or {}
+    priority = data.get('priority', 'low')
+    if priority not in ('high', 'medium', 'low'):
+        return jsonify(ok=False, error='invalid priority'), 400
+
+    conn = get_db()
+    c = conn.cursor()
+    c.execute('SELECT creator_id, assignee_id FROM projects WHERE id=%s', (project_id,))
+    proj = c.fetchone()
+    if not proj:
+        release_db(conn)
+        return jsonify(ok=False, error='not found'), 404
+
+    uid = session['user_id']
+    if uid != proj['creator_id'] and uid != proj['assignee_id']:
+        release_db(conn)
+        return jsonify(ok=False, error='no permission'), 403
+
+    c.execute('UPDATE projects SET priority=%s, updated_at=CURRENT_TIMESTAMP WHERE id=%s',
+              (priority, project_id))
+    conn.commit()
+    release_db(conn)
+    return jsonify(ok=True)
 
 
 @app.route('/kanban')
