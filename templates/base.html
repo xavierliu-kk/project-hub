@@ -381,10 +381,12 @@
         </a>
         {% endif %}
 
+        {% if current_user_is_manager %}
         <a href="{{ url_for('manager') }}"
            class="sidebar-item {% if request.endpoint == 'manager' %}active{% endif %}">
             <i class="bi bi-graph-up"></i> 主管儀表板
         </a>
+        {% endif %}
 
         <div class="sidebar-sect" style="margin-top:10px;">Account</div>
         {% if session.get('user_id') %}

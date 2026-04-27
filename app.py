@@ -34,6 +34,9 @@ pool = ConnectionPool(
 
 DEPARTMENTS = ['會計','財務','投資人','財務規劃','法務','自動化','財務長']
 
+# Emails that can access the manager dashboard
+MANAGER_EMAILS = {'xavier.liu@kkday.com'}
+
 PULSE_STATUS = {
     'new':     {'t_key': 'pulse_new',     'color': '#6b7280'},
     'process': {'t_key': 'pulse_process', 'color': '#f59e0b'},
@@ -86,6 +89,18 @@ def inject_i18n():
     def t(key, fallback=None):
         return TRANSLATIONS.get(lang, TRANSLATIONS['zh']).get(key, fallback or key)
     return {'t': t, 'current_lang': lang}
+
+
+@app.context_processor
+def inject_manager_flag():
+    if 'user_id' not in session:
+        return {'current_user_is_manager': False}
+    conn = get_db()
+    c = conn.cursor()
+    c.execute('SELECT email, is_manager FROM users WHERE id=%s', (session['user_id'],))
+    u = c.fetchone()
+    flag = bool(u and (u['email'] in MANAGER_EMAILS or u.get('is_manager')))
+    return {'current_user_is_manager': flag}
 
 
 # ── DB helpers ────────────────────────────────────────────────
@@ -170,6 +185,19 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
+
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS activity_log (
+            id           SERIAL PRIMARY KEY,
+            project_id   INTEGER NOT NULL REFERENCES projects(id),
+            user_id      INTEGER NOT NULL REFERENCES users(id),
+            action_type  VARCHAR(20) NOT NULL,
+            action_label TEXT        NOT NULL,
+            created_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
+    c.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS is_manager BOOLEAN DEFAULT FALSE')
 
     conn.commit()
     release_db(conn)
@@ -491,6 +519,11 @@ def sub_project_new(project_id):
                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)''',
             (title, description, session['user_id'], assignee_id, project_id, launch_date, benefit, priority)
         )
+        c.execute(
+            'INSERT INTO activity_log (project_id, user_id, action_type, action_label) VALUES (%s,%s,%s,%s)',
+            (project_id, session['user_id'], 'sub_project',
+             f'{session["user_name"]} 新增了子專案「{title}」')
+        )
         conn.commit()
         release_db(conn)
         flash(_t('flash_sub_created', title=title), 'success')
@@ -617,6 +650,25 @@ def project_edit(project_id):
                    priority=%s, updated_at=CURRENT_TIMESTAMP
                WHERE id=%s''',
             (title, description, assignee_id, launch_date, benefit, priority, project_id)
+        )
+        _changes = []
+        if title != project['title']:
+            _changes.append('名稱')
+        if str(assignee_id or '') != str(project['assignee_id'] or ''):
+            _changes.append('負責人')
+        if (launch_date or '') != (str(project['launch_date'])[:10] if project['launch_date'] else ''):
+            _changes.append('預計上線日期')
+        if priority != (project['priority'] or 'low'):
+            _changes.append(f'重要性→{priority.upper()}')
+        if description != (project['description'] or ''):
+            _changes.append('說明')
+        if (benefit or '') != (project['benefit'] or ''):
+            _changes.append('效益')
+        _desc = '、'.join(_changes) if _changes else '資訊'
+        c.execute(
+            'INSERT INTO activity_log (project_id, user_id, action_type, action_label) VALUES (%s,%s,%s,%s)',
+            (project_id, session['user_id'], 'edit',
+             f'{session["user_name"]} 編輯了專案（更新：{_desc}）')
         )
         conn.commit()
         release_db(conn)
@@ -762,16 +814,22 @@ def project_list():
 @app.route('/manager')
 @login_required
 def manager():
+    # Access control
     conn = get_db()
     c = conn.cursor()
+    c.execute('SELECT email, is_manager FROM users WHERE id=%s', (session['user_id'],))
+    _u = c.fetchone()
+    if not _u or (_u['email'] not in MANAGER_EMAILS and not _u.get('is_manager')):
+        release_db(conn)
+        abort(403)
 
-    # Last week date range (previous Sun → Sat, inclusive)
+    # Last week date range (previous Sun → this Sun)
     today = date.today()
     days_since_sunday = (today.weekday() + 1) % 7
-    this_week_start  = datetime.combine(today - timedelta(days=days_since_sunday), datetime.min.time())
-    last_week_start  = this_week_start - timedelta(days=7)
+    this_week_start = datetime.combine(today - timedelta(days=days_since_sunday), datetime.min.time())
+    last_week_start = this_week_start - timedelta(days=7)
 
-    # 1. Summary counts
+    # 1. Summary counts (all-time)
     c.execute('''
         SELECT
             COUNT(*) FILTER (WHERE parent_id IS NULL) AS total,
@@ -786,15 +844,15 @@ def manager():
     ''')
     summary = c.fetchone()
 
-    # 2. Projects updated last week (distinct count)
+    # 2. Last-week activity count
     c.execute('''
         SELECT COUNT(DISTINCT project_id) AS cnt
-        FROM project_pulse
+        FROM activity_log
         WHERE created_at >= %s AND created_at < %s
     ''', (last_week_start, this_week_start))
     last_week_updated = c.fetchone()['cnt']
 
-    # 3. Dept stats (stacked by status)
+    # 3. Dept stats
     c.execute('''
         SELECT
             COALESCE(ua.department, '未指派') AS department,
@@ -833,49 +891,36 @@ def manager():
     ''')
     person_stats = c.fetchall()
 
-    # 5. Last week logs (grouped display)
-    c.execute('''
-        SELECT pp.id, pp.project_id, pp.status, pp.message, pp.created_at,
-               u.name AS user_name, u.department AS user_dept,
-               p.title AS project_title
-        FROM project_pulse pp
-        JOIN users u ON pp.user_id = u.id
-        JOIN projects p ON pp.project_id = p.id
-        WHERE pp.created_at >= %s AND pp.created_at < %s
-        ORDER BY pp.created_at DESC
-    ''', (last_week_start, this_week_start))
-    last_week_logs_raw = c.fetchall()
-
-    # Group last week logs by project
-    from collections import OrderedDict
-    lw_by_proj = OrderedDict()
-    for log in last_week_logs_raw:
-        pid = log['project_id']
-        if pid not in lw_by_proj:
-            lw_by_proj[pid] = {'title': log['project_title'], 'project_id': pid, 'logs': []}
-        lw_by_proj[pid]['logs'].append(log)
-    last_week_projects = list(lw_by_proj.values())
-
-    # 6. All recent logs
-    c.execute('''
-        SELECT pp.id, pp.project_id, pp.status, pp.message, pp.created_at,
-               u.name AS user_name, u.department AS user_dept,
-               p.title AS project_title
-        FROM project_pulse pp
-        JOIN users u ON pp.user_id = u.id
-        JOIN projects p ON pp.project_id = p.id
-        ORDER BY pp.created_at DESC LIMIT 80
-    ''')
+    # 5. Unified activity log — all recent (150 entries)
+    _log_sql = '''
+        SELECT
+            al.id, al.project_id, al.action_type, al.action_label, al.created_at,
+            u.name AS user_name, u.department AS user_dept,
+            p.title AS project_title,
+            COALESCE(root.title, p.title) AS root_title,
+            COALESCE(p.parent_id, p.id)   AS root_project_id
+        FROM activity_log al
+        JOIN users u    ON al.user_id    = u.id
+        JOIN projects p ON al.project_id = p.id
+        LEFT JOIN projects root ON p.parent_id = root.id
+        {where}
+        ORDER BY al.created_at DESC
+        LIMIT 150
+    '''
+    c.execute(_log_sql.format(where=''))
     all_logs = c.fetchall()
+
+    c.execute(_log_sql.format(where='WHERE al.created_at >= %s AND al.created_at < %s'),
+              (last_week_start, this_week_start))
+    last_week_logs = c.fetchall()
 
     release_db(conn)
 
-    # Chart data serialisation (plain Python dicts)
     dept_chart = {
-        'labels':   [r['department'] for r in dept_stats],
-        'new':      [r['new_count']     for r in dept_stats],
-        'process':  [r['process_count'] for r in dept_stats],
-        'done':     [r['done_count']    for r in dept_stats],
+        'labels':  [r['department']   for r in dept_stats],
+        'new':     [r['new_count']     for r in dept_stats],
+        'process': [r['process_count'] for r in dept_stats],
+        'done':    [r['done_count']    for r in dept_stats],
     }
     person_chart = {
         'labels': [r['assignee_name'] for r in person_stats],
@@ -893,8 +938,8 @@ def manager():
         last_week_updated=last_week_updated,
         dept_stats=dept_stats,
         person_stats=person_stats,
-        last_week_projects=last_week_projects,
         all_logs=all_logs,
+        last_week_logs=last_week_logs,
         dept_chart=dept_chart,
         person_chart=person_chart,
         status_chart=status_chart,
@@ -982,6 +1027,12 @@ def comment_add(project_id):
         (project_id, session['user_id'], content)
     )
     row = c.fetchone()
+    _preview = content[:60] + ('…' if len(content) > 60 else '')
+    c.execute(
+        'INSERT INTO activity_log (project_id, user_id, action_type, action_label) VALUES (%s,%s,%s,%s)',
+        (project_id, session['user_id'], 'comment',
+         f'{session["user_name"]} 新增留言：{_preview}')
+    )
     conn.commit()
     release_db(conn)
 
@@ -1058,6 +1109,13 @@ def pulse_add(project_id):
         (project_id, session['user_id'], status, message)
     )
     row = c.fetchone()
+    _status_names = {'new': '未開始', 'process': '進行中', 'done': '已完成'}
+    _preview = message[:60] + ('…' if len(message) > 60 else '')
+    c.execute(
+        'INSERT INTO activity_log (project_id, user_id, action_type, action_label) VALUES (%s,%s,%s,%s)',
+        (project_id, session['user_id'], 'pulse',
+         f'{session["user_name"]} 更新進度 → {_status_names.get(status, status)}：{_preview}')
+    )
     conn.commit()
     release_db(conn)
 
