@@ -1,0 +1,288 @@
+{% extends 'base.html' %}
+{% block title %}{{ t('nav_kanban') }} — Project Hub{% endblock %}
+{% block header_title %}{{ t('nav_kanban') }}{% endblock %}
+
+{% block content %}
+
+<style>
+    .kanban-wrap {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 14px;
+        align-items: start;
+    }
+    @media (max-width: 800px) {
+        .kanban-wrap { grid-template-columns: 1fr; }
+    }
+
+    .kb-col {
+        border-radius: 10px;
+        background: var(--snow);
+        border: 1px solid var(--blue-pale);
+        overflow: hidden;
+    }
+    .kb-col-header {
+        padding: 11px 14px 9px;
+        border-bottom: 1px solid var(--blue-pale);
+        display: flex;
+        align-items: center;
+        gap: 7px;
+    }
+    .kb-col-body {
+        padding: 10px 8px;
+        min-height: 180px;
+        transition: background 0.12s;
+    }
+    .kb-col-body.drag-over {
+        background: rgba(109,179,216,0.13);
+    }
+
+    .kb-card {
+        background: #fff;
+        border-radius: 8px;
+        border: 1px solid rgba(0,0,0,0.07);
+        border-left: 3px solid transparent;
+        padding: 10px 12px;
+        margin-bottom: 7px;
+        cursor: grab;
+        transition: box-shadow 0.13s, transform 0.13s, opacity 0.13s;
+        user-select: none;
+        position: relative;
+    }
+    .kb-card:last-child { margin-bottom: 0; }
+    .kb-card:hover {
+        box-shadow: 0 4px 14px rgba(0,0,0,0.09);
+        transform: translateY(-1px);
+    }
+    .kb-card.dragging {
+        opacity: 0.35;
+        cursor: grabbing;
+        box-shadow: none;
+        transform: none;
+    }
+
+    /* sub-project: slightly tinted background */
+    .kb-card-sub {
+        background: #f5f9fc;
+        border-left-width: 2px;
+    }
+
+    .kb-empty {
+        text-align: center;
+        padding: 28px 12px;
+        color: var(--text-light);
+        font-size: 12px;
+        line-height: 1.6;
+    }
+</style>
+
+<!-- Page header -->
+<div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+    <div>
+        <div style="font-size:11px; font-weight:700; color:var(--text-muted); letter-spacing:0.06em;
+                    text-transform:uppercase; margin-bottom:3px;">{{ t('nav_kanban') }}</div>
+        <div style="font-size:12.5px; color:var(--text-muted);">
+            <i class="bi bi-arrows-move me-1" style="opacity:0.5;"></i>{{ t('kanban_drag_hint') }}
+        </div>
+    </div>
+    {% set total = (columns.new|length) + (columns.process|length) + (columns.done|length) %}
+    <div style="font-size:12px; color:var(--text-muted);">
+        {{ total }} 個專案
+    </div>
+</div>
+
+{% if total == 0 %}
+<div style="text-align:center; padding:60px 20px; color:var(--text-muted);">
+    <i class="bi bi-kanban" style="font-size:36px; opacity:0.2; display:block; margin-bottom:12px;"></i>
+    <div style="font-size:14px; font-weight:600; margin-bottom:4px;">{{ t('kanban_no_projects') }}</div>
+</div>
+{% else %}
+<div class="kanban-wrap">
+    {% for key, ps in pulse_status.items() %}
+    {% set cards = columns[key] %}
+    <div class="kb-col" id="col-{{ key }}" data-status="{{ key }}">
+
+        <!-- Column header -->
+        <div class="kb-col-header" style="border-bottom:2px solid {{ ps.color }}22;">
+            <span style="width:9px; height:9px; border-radius:50%; background:{{ ps.color }};
+                         flex-shrink:0; box-shadow:0 0 0 3px {{ ps.color }}22;"></span>
+            <span style="font-size:12px; font-weight:700; color:{{ ps.color }}; letter-spacing:0.04em;">
+                {{ t(ps.t_key) }}
+            </span>
+            <span id="count-{{ key }}"
+                  style="margin-left:auto; font-size:11px; font-weight:600;
+                         background:{{ ps.color }}18; color:{{ ps.color }};
+                         padding:1px 7px; border-radius:20px;">
+                {{ cards|length }}
+            </span>
+        </div>
+
+        <!-- Droppable body -->
+        <div class="kb-col-body" id="body-{{ key }}"
+             ondragover="onDragOver(event)"
+             ondragleave="onDragLeave(event)"
+             ondrop="onDrop(event, '{{ key }}')">
+
+            {% for proj in cards %}
+            <div class="kb-card {% if proj.parent_id %}kb-card-sub{% endif %}"
+                 id="card-{{ proj.id }}"
+                 draggable="true"
+                 data-project-id="{{ proj.id }}"
+                 data-status="{{ key }}"
+                 style="border-left-color: {{ ps.color }};"
+                 ondragstart="onDragStart(event)">
+
+                {% if proj.parent_id %}
+                <!-- Sub-project label -->
+                <div style="display:flex; align-items:center; gap:4px; margin-bottom:4px;">
+                    <i class="bi bi-arrow-return-right"
+                       style="font-size:9px; color:var(--text-light); flex-shrink:0;"></i>
+                    <span style="font-size:10px; color:var(--text-light);
+                                 white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+                                 max-width:160px;">{{ proj.parent_title }}</span>
+                </div>
+                {% else %}
+                <!-- Parent project label -->
+                <div style="margin-bottom:4px;">
+                    <span style="font-size:10px; font-weight:700; color:var(--blue-deep);
+                                 letter-spacing:0.05em; text-transform:uppercase; opacity:0.7;">
+                        <i class="bi bi-folder" style="font-size:9px; margin-right:2px;"></i>主專案
+                    </span>
+                </div>
+                {% endif %}
+
+                <!-- Title -->
+                <div style="font-size:13px; font-weight:600; color:var(--text-dark);
+                            line-height:1.35; margin-bottom:{% if not proj.parent_id and proj.launch_date %}6px{% else %}0{% endif %};">
+                    <a href="{{ url_for('project_detail', project_id=proj.id) }}"
+                       style="color:inherit; text-decoration:none;"
+                       onclick="event.stopPropagation();">{{ proj.title }}</a>
+                </div>
+
+                <!-- Launch date (parent only) -->
+                {% if not proj.parent_id and proj.launch_date %}
+                <div style="display:flex; align-items:center; gap:4px;">
+                    <i class="bi bi-calendar3" style="font-size:9px; color:var(--text-light);"></i>
+                    <span class="mono" style="font-size:10.5px; color:var(--text-muted);">
+                        {{ proj.launch_date | datefmt }}
+                    </span>
+                </div>
+                {% endif %}
+            </div>
+            {% else %}
+            <div class="kb-empty" id="empty-{{ key }}">
+                <i class="bi bi-inbox" style="font-size:20px; opacity:0.25; display:block; margin-bottom:7px;"></i>
+                暫無專案
+            </div>
+            {% endfor %}
+
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const PULSE_COLORS = {
+    {% for key, ps in pulse_status.items() %}
+    '{{ key }}': '{{ ps.color }}',
+    {% endfor %}
+};
+
+let draggedId   = null;
+let draggedEl   = null;
+let draggedFrom = null;
+
+function onDragStart(e) {
+    draggedEl   = e.currentTarget;
+    draggedId   = draggedEl.dataset.projectId;
+    draggedFrom = draggedEl.dataset.status;
+    e.dataTransfer.effectAllowed = 'move';
+    setTimeout(() => draggedEl.classList.add('dragging'), 0);
+}
+
+function onDragOver(e) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    e.currentTarget.classList.add('drag-over');
+}
+
+function onDragLeave(e) {
+    // only remove if leaving the column body itself, not a child element
+    if (!e.currentTarget.contains(e.relatedTarget)) {
+        e.currentTarget.classList.remove('drag-over');
+    }
+}
+
+async function onDrop(e, newStatus) {
+    e.preventDefault();
+    e.currentTarget.classList.remove('drag-over');
+    if (!draggedId || !draggedEl) return;
+    if (newStatus === draggedFrom) {
+        draggedEl.classList.remove('dragging');
+        return;
+    }
+
+    const oldStatus = draggedFrom;
+    const color = PULSE_COLORS[newStatus];
+
+    try {
+        const res = await fetch(`/project/${draggedId}/pulse`, {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'fetch' },
+            body: new URLSearchParams({ status: newStatus, message: '' })
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error);
+
+        const toBody = document.getElementById('body-' + newStatus);
+
+        // Remove empty placeholder in destination if present
+        const toEmpty = document.getElementById('empty-' + newStatus);
+        if (toEmpty) toEmpty.remove();
+
+        // Update card appearance for new status
+        draggedEl.style.borderLeftColor = color;
+        draggedEl.classList.remove('dragging');
+        draggedEl.dataset.status = newStatus;
+        toBody.prepend(draggedEl);
+
+        // If source column now empty, show placeholder
+        const fromBody = document.getElementById('body-' + oldStatus);
+        if (fromBody.querySelectorAll('.kb-card').length === 0) {
+            fromBody.innerHTML = `
+                <div class="kb-empty" id="empty-${oldStatus}">
+                    <i class="bi bi-inbox" style="font-size:20px;opacity:0.25;display:block;margin-bottom:7px;"></i>
+                    暫無專案
+                </div>`;
+        }
+
+        // Update column counts
+        updateCount(oldStatus);
+        updateCount(newStatus);
+
+        draggedFrom = newStatus;
+
+    } catch(err) {
+        draggedEl.classList.remove('dragging');
+        alert('更新失敗：' + (err.message || ''));
+    }
+}
+
+document.addEventListener('dragend', function() {
+    if (draggedEl) draggedEl.classList.remove('dragging');
+    document.querySelectorAll('.kb-col-body').forEach(b => b.classList.remove('drag-over'));
+});
+
+function updateCount(status) {
+    const body  = document.getElementById('body-' + status);
+    const badge = document.getElementById('count-' + status);
+    if (!body || !badge) return;
+    const n = body.querySelectorAll('.kb-card').length;
+    badge.textContent = n;
+}
+</script>
+{% endblock %}

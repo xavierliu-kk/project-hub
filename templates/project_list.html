@@ -1,0 +1,510 @@
+{% extends 'base.html' %}
+{% block title %}{{ t('nav_project_list') }} — Project Hub{% endblock %}
+{% block header_title %}{{ t('nav_project_list') }}{% endblock %}
+
+{% block content %}
+
+<style>
+    .list-table { width:100%; border-collapse:separate; border-spacing:0; }
+    .list-table thead th {
+        padding: 10px 14px;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.07em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+        background: var(--snow);
+        border-bottom: 2px solid var(--blue-pale);
+        white-space: nowrap;
+        user-select: none;
+    }
+    .list-table thead th a {
+        display: inline-flex;
+        align-items: center;
+        gap: 4px;
+        color: var(--text-muted);
+        text-decoration: none;
+        transition: color 0.12s;
+    }
+    .list-table thead th a:hover { color: var(--blue-mid); }
+    .list-table thead th a.active { color: var(--blue-deep); font-weight:700; }
+
+    .row-parent td {
+        padding: 11px 14px;
+        font-size: 13.5px;
+        color: var(--text-dark);
+        border-bottom: 1px solid var(--blue-pale);
+        vertical-align: middle;
+        background: #fff;
+        cursor: pointer;
+        transition: background 0.1s;
+    }
+    .row-parent:hover td { background: rgba(109,179,216,0.07); }
+
+    .row-child td {
+        padding: 9px 14px;
+        font-size: 12.5px;
+        color: var(--text-mid);
+        border-bottom: 1px solid rgba(212,234,247,0.5);
+        vertical-align: middle;
+        background: var(--snow);
+        cursor: pointer;
+        transition: background 0.1s;
+    }
+    .row-child:hover td { background: rgba(109,179,216,0.1); }
+    .row-child.hidden { display: none; }
+    .row-parent.filtered-hidden { display: none; }
+
+    .toggle-btn {
+        background: none; border: none; cursor: pointer;
+        padding: 2px 5px; border-radius: 4px;
+        color: var(--text-muted); font-size: 11px; line-height: 1;
+        transition: background 0.12s, color 0.12s; flex-shrink: 0;
+    }
+    .toggle-btn:hover { background: var(--blue-pale); color: var(--blue-deep); }
+
+    /* Filter bar */
+    .filter-bar {
+        padding: 14px 20px;
+        background: var(--snow);
+        border-bottom: 1px solid var(--blue-pale);
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: flex-end;
+    }
+    .filter-group { display: flex; flex-direction: column; gap: 4px; }
+    .filter-label {
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--text-muted);
+    }
+    .filter-input {
+        height: 34px;
+        border: 1px solid var(--blue-pale);
+        border-radius: 6px;
+        padding: 0 10px;
+        font-size: 12.5px;
+        color: var(--text-dark);
+        background: #fff;
+        outline: none;
+        transition: border-color 0.15s;
+        min-width: 180px;
+    }
+    .filter-input:focus { border-color: var(--blue-mid); }
+
+    /* Custom multi-select dropdown */
+    .multi-select-wrap { position: relative; }
+    .multi-select-btn {
+        height: 34px;
+        min-width: 160px;
+        border: 1px solid var(--blue-pale);
+        border-radius: 6px;
+        padding: 0 28px 0 10px;
+        font-size: 12.5px;
+        color: var(--text-dark);
+        background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%236b7280'/%3E%3C/svg%3E") no-repeat right 10px center;
+        cursor: pointer;
+        outline: none;
+        text-align: left;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        transition: border-color 0.15s;
+        display: flex;
+        align-items: center;
+    }
+    .multi-select-btn:focus, .multi-select-btn.open { border-color: var(--blue-mid); }
+    .multi-select-dropdown {
+        display: none;
+        position: absolute;
+        top: calc(100% + 4px);
+        left: 0;
+        min-width: 100%;
+        background: #fff;
+        border: 1px solid var(--blue-pale);
+        border-radius: 8px;
+        box-shadow: 0 6px 20px rgba(26,79,122,0.12);
+        z-index: 200;
+        padding: 6px 0;
+        max-height: 220px;
+        overflow-y: auto;
+    }
+    .multi-select-dropdown.open { display: block; }
+    .multi-select-item {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 7px 14px;
+        font-size: 12.5px;
+        color: var(--text-dark);
+        cursor: pointer;
+        transition: background 0.1s;
+        user-select: none;
+    }
+    .multi-select-item:hover { background: var(--blue-pale); }
+    .multi-select-item input[type=checkbox] { accent-color: var(--blue-mid); width:14px; height:14px; cursor:pointer; }
+    .filter-clear-btn {
+        height: 34px;
+        padding: 0 14px;
+        border: 1px solid var(--blue-pale);
+        border-radius: 6px;
+        background: #fff;
+        font-size: 12px;
+        color: var(--text-muted);
+        cursor: pointer;
+        transition: all 0.12s;
+        white-space: nowrap;
+        align-self: flex-end;
+    }
+    .filter-clear-btn:hover { background: var(--blue-pale); color: var(--blue-deep); border-color: var(--blue-mid); }
+</style>
+
+<div class="card" style="overflow:hidden;">
+    <div style="padding:16px 20px 12px; border-bottom:1px solid var(--blue-pale);
+                display:flex; align-items:center; justify-content:space-between;">
+        <div>
+            <div class="label mb-1">Projects</div>
+            <div style="font-size:14px; font-weight:700; color:var(--blue-deep);">
+                {{ t('nav_project_list') }}
+                <span id="project-count" style="font-size:12px; font-weight:500; color:var(--text-muted); margin-left:6px;">
+                    {{ parents | length }} 個主專案
+                </span>
+            </div>
+        </div>
+        {% if session.get('user_id') %}
+        <a href="{{ url_for('project_new') }}" class="btn btn-dark px-3 py-2" style="font-size:12.5px;">
+            <i class="bi bi-plus me-1" style="font-size:11px;"></i>{{ t('nav_new_project') }}
+        </a>
+        {% endif %}
+    </div>
+
+    <!-- 篩選列 -->
+    <div class="filter-bar">
+        <div class="filter-group">
+            <span class="filter-label">專案名稱</span>
+            <input type="text" id="filter-q" class="filter-input" placeholder="模糊搜尋..." oninput="applyFilters()">
+        </div>
+
+        <div class="filter-group">
+            <span class="filter-label">部門</span>
+            <div class="multi-select-wrap" id="dept-wrap">
+                <button type="button" class="multi-select-btn" id="dept-btn" onclick="toggleDropdown('dept')">
+                    <span id="dept-label">全部部門</span>
+                </button>
+                <div class="multi-select-dropdown" id="dept-dropdown">
+                    {% for dept in departments %}
+                    <label class="multi-select-item">
+                        <input type="checkbox" class="dept-check" value="{{ dept }}" onchange="updateLabel('dept'); applyFilters();">
+                        {{ dept }}
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <div class="filter-group">
+            <span class="filter-label">人員</span>
+            <div class="multi-select-wrap" id="assignee-wrap">
+                <button type="button" class="multi-select-btn" id="assignee-btn" onclick="toggleDropdown('assignee')">
+                    <span id="assignee-label">全部人員</span>
+                </button>
+                <div class="multi-select-dropdown" id="assignee-dropdown">
+                    {% for user in all_users %}
+                    <label class="multi-select-item">
+                        <input type="checkbox" class="assignee-check" value="{{ user }}" onchange="updateLabel('assignee'); applyFilters();">
+                        {{ user }}
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <button type="button" class="filter-clear-btn" onclick="clearFilters()">
+            <i class="bi bi-x-circle me-1"></i>清除篩選
+        </button>
+    </div>
+
+    {% if parents %}
+    <div style="overflow-x:auto;">
+    <table class="list-table">
+        <thead>
+            <tr>
+                <th style="width:28%;">
+                    {% set col = 'title' %}
+                    <a href="{{ url_for('project_list', sort=col, dir=(next_dir if sort_by==col else 'asc')) }}"
+                       class="{{ 'active' if sort_by == col else '' }}">
+                        {{ t('col_name') }}
+                        <i class="bi bi-chevron-{{ 'down' if (sort_by==col and sort_dir=='asc') else ('up' if (sort_by==col and sort_dir=='desc') else 'expand') }}"
+                           style="font-size:9px; opacity:{{ '1' if sort_by==col else '0.4' }};"></i>
+                    </a>
+                </th>
+                <th style="width:13%;">
+                    {% set col = 'assignee' %}
+                    <a href="{{ url_for('project_list', sort=col, dir=(next_dir if sort_by==col else 'asc')) }}"
+                       class="{{ 'active' if sort_by == col else '' }}">
+                        {{ t('col_assignee') }}
+                        <i class="bi bi-chevron-{{ 'down' if (sort_by==col and sort_dir=='asc') else ('up' if (sort_by==col and sort_dir=='desc') else 'expand') }}"
+                           style="font-size:9px; opacity:{{ '1' if sort_by==col else '0.4' }};"></i>
+                    </a>
+                </th>
+                <th style="width:13%;">
+                    {% set col = 'department' %}
+                    <a href="{{ url_for('project_list', sort=col, dir=(next_dir if sort_by==col else 'asc')) }}"
+                       class="{{ 'active' if sort_by == col else '' }}">
+                        {{ t('col_department') }}
+                        <i class="bi bi-chevron-{{ 'down' if (sort_by==col and sort_dir=='asc') else ('up' if (sort_by==col and sort_dir=='desc') else 'expand') }}"
+                           style="font-size:9px; opacity:{{ '1' if sort_by==col else '0.4' }};"></i>
+                    </a>
+                </th>
+                <th style="width:14%;">
+                    {% set col = 'status' %}
+                    <a href="{{ url_for('project_list', sort=col, dir=(next_dir if sort_by==col else 'asc')) }}"
+                       class="{{ 'active' if sort_by == col else '' }}">
+                        {{ t('col_status') }}
+                        <i class="bi bi-chevron-{{ 'down' if (sort_by==col and sort_dir=='asc') else ('up' if (sort_by==col and sort_dir=='desc') else 'expand') }}"
+                           style="font-size:9px; opacity:{{ '1' if sort_by==col else '0.4' }};"></i>
+                    </a>
+                </th>
+                <th style="width:14%;">
+                    {% set col = 'launch_date' %}
+                    <a href="{{ url_for('project_list', sort=col, dir=(next_dir if sort_by==col else 'asc')) }}"
+                       class="{{ 'active' if sort_by == col else '' }}">
+                        {{ t('col_launch_date') }}
+                        <i class="bi bi-chevron-{{ 'down' if (sort_by==col and sort_dir=='asc') else ('up' if (sort_by==col and sort_dir=='desc') else 'expand') }}"
+                           style="font-size:9px; opacity:{{ '1' if sort_by==col else '0.4' }};"></i>
+                    </a>
+                </th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in parents %}
+            {% set children = children_map.get(p.id, []) %}
+            {% set has_children = children | length > 0 %}
+            {% set p_pulse = pulse_status.get(p.latest_pulse) %}
+
+            <!-- 母專案 row -->
+            <tr class="row-parent"
+                data-pid="{{ p.id }}"
+                data-title="{{ p.title | lower }}"
+                data-dept="{{ p.assignee_department or '' }}"
+                data-assignee="{{ p.assignee_name or '' }}"
+                onclick="navProject(event, '{{ url_for('project_detail', project_id=p.id) }}')">
+                <td>
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        {% if has_children %}
+                        <button class="toggle-btn" data-target="{{ p.id }}"
+                                onclick="event.stopPropagation(); toggleChildren(this);">
+                            <i class="bi bi-chevron-right" id="chevron-{{ p.id }}"></i>
+                        </button>
+                        {% else %}
+                        <span style="width:20px; display:inline-block;"></span>
+                        {% endif %}
+                        <span style="font-weight:600; color:var(--blue-deep);">{{ p.title }}</span>
+                        {% if has_children %}
+                        <span style="font-size:10.5px; color:var(--text-light);">· {{ children | length }}</span>
+                        {% endif %}
+                    </div>
+                </td>
+                <td>
+                    {% if p.assignee_name %}
+                        <span style="display:inline-flex; align-items:center; gap:6px;">
+                            <span style="width:22px; height:22px; background:var(--blue-sky); border-radius:50%;
+                                         display:inline-flex; align-items:center; justify-content:center;
+                                         color:#fff; font-size:10px; font-weight:700; flex-shrink:0;">
+                                {{ p.assignee_name[0] }}
+                            </span>
+                            <span style="font-size:12.5px;">{{ p.assignee_name }}</span>
+                        </span>
+                    {% else %}
+                        <span style="color:var(--text-light);">—</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if p.assignee_department %}
+                        <span style="font-size:12px; color:var(--text-mid);">{{ p.assignee_department }}</span>
+                    {% else %}
+                        <span style="color:var(--text-light);">—</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if p_pulse %}
+                        <span style="display:inline-flex; align-items:center; gap:5px;
+                                     padding:2px 9px; border-radius:20px; font-size:11px; font-weight:600;
+                                     background:{{ p_pulse.color }}18; color:{{ p_pulse.color }};">
+                            <span style="width:7px; height:7px; border-radius:50%; background:{{ p_pulse.color }}; flex-shrink:0;"></span>
+                            {{ t(p_pulse.t_key) }}
+                        </span>
+                    {% else %}
+                        <span style="color:var(--text-light);">—</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if p.launch_date %}
+                        <span class="mono" style="font-size:12.5px;">{{ p.launch_date | datefmt }}</span>
+                    {% else %}
+                        <span style="color:var(--text-light);">—</span>
+                    {% endif %}
+                </td>
+            </tr>
+
+            <!-- 子專案 rows -->
+            {% for child in children %}
+            {% set c_pulse = pulse_status.get(child.latest_pulse) %}
+            <tr class="row-child hidden" data-child-of="{{ p.id }}"
+                onclick="navProject(event, '{{ url_for('project_detail', project_id=child.id) }}')">
+                <td style="padding-left:46px !important;">
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <i class="bi bi-arrow-return-right" style="font-size:10px; color:var(--text-light); flex-shrink:0;"></i>
+                        <span>{{ child.title }}</span>
+                    </div>
+                </td>
+                <td>
+                    {% if child.assignee_name %}
+                        <span style="display:inline-flex; align-items:center; gap:6px;">
+                            <span style="width:22px; height:22px; background:var(--blue-sky); border-radius:50%;
+                                         display:inline-flex; align-items:center; justify-content:center;
+                                         color:#fff; font-size:10px; font-weight:700; flex-shrink:0;">
+                                {{ child.assignee_name[0] }}
+                            </span>
+                            <span style="font-size:12.5px;">{{ child.assignee_name }}</span>
+                        </span>
+                    {% else %}
+                        <span style="color:var(--text-light);">—</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if child.assignee_department %}
+                        <span style="font-size:12px; color:var(--text-mid);">{{ child.assignee_department }}</span>
+                    {% else %}
+                        <span style="color:var(--text-light);">—</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if c_pulse %}
+                        <span style="display:inline-flex; align-items:center; gap:5px;
+                                     padding:2px 9px; border-radius:20px; font-size:11px; font-weight:600;
+                                     background:{{ c_pulse.color }}18; color:{{ c_pulse.color }};">
+                            <span style="width:7px; height:7px; border-radius:50%; background:{{ c_pulse.color }}; flex-shrink:0;"></span>
+                            {{ t(c_pulse.t_key) }}
+                        </span>
+                    {% else %}
+                        <span style="color:var(--text-light);">—</span>
+                    {% endif %}
+                </td>
+                <td><span style="color:var(--text-light);">—</span></td>
+            </tr>
+            {% endfor %}
+
+            {% endfor %}
+        </tbody>
+    </table>
+    </div>
+
+    {% else %}
+    <div style="padding:48px 24px; text-align:center; color:var(--text-muted);">
+        <i class="bi bi-inbox" style="font-size:32px; opacity:0.3; display:block; margin-bottom:10px;"></i>
+        <div style="font-size:14px; font-weight:600; margin-bottom:4px;">{{ t('no_projects') }}</div>
+        <div style="font-size:12.5px;">{{ t('no_projects_desc') }}</div>
+    </div>
+    {% endif %}
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+function navProject(e, url) {
+    if (e.target.closest('.toggle-btn')) return;
+    location.href = url;
+}
+
+function toggleChildren(btn) {
+    const parentId = btn.dataset.target;
+    const chevron  = document.getElementById('chevron-' + parentId);
+    const rows     = document.querySelectorAll('[data-child-of="' + parentId + '"]');
+    const isOpen   = rows.length > 0 && !rows[0].classList.contains('hidden');
+
+    rows.forEach(r => r.classList.toggle('hidden', isOpen));
+    if (chevron) {
+        chevron.className = isOpen ? 'bi bi-chevron-right' : 'bi bi-chevron-down';
+    }
+}
+
+/* ── Filter logic ── */
+function applyFilters() {
+    const q        = document.getElementById('filter-q').value.toLowerCase().trim();
+    const depts    = [...document.querySelectorAll('.dept-check:checked')].map(x => x.value);
+    const assignees = [...document.querySelectorAll('.assignee-check:checked')].map(x => x.value);
+
+    let visible = 0;
+    document.querySelectorAll('.row-parent').forEach(row => {
+        const title    = row.dataset.title || '';
+        const dept     = row.dataset.dept  || '';
+        const assignee = row.dataset.assignee || '';
+        const pid      = row.dataset.pid;
+
+        const matchQ        = !q        || title.includes(q);
+        const matchDept     = depts.length    === 0 || depts.includes(dept);
+        const matchAssignee = assignees.length === 0 || assignees.includes(assignee);
+
+        const show = matchQ && matchDept && matchAssignee;
+        row.classList.toggle('filtered-hidden', !show);
+
+        // hide children when parent filtered out
+        document.querySelectorAll('[data-child-of="' + pid + '"]').forEach(r => {
+            if (!show) r.classList.add('hidden');
+        });
+
+        if (show) visible++;
+    });
+
+    document.getElementById('project-count').textContent = visible + ' 個主專案';
+}
+
+function clearFilters() {
+    document.getElementById('filter-q').value = '';
+    document.querySelectorAll('.dept-check, .assignee-check').forEach(cb => cb.checked = false);
+    updateLabel('dept');
+    updateLabel('assignee');
+    applyFilters();
+}
+
+/* ── Multi-select dropdown ── */
+function toggleDropdown(key) {
+    const dd  = document.getElementById(key + '-dropdown');
+    const btn = document.getElementById(key + '-btn');
+    const isOpen = dd.classList.contains('open');
+    // close all first
+    document.querySelectorAll('.multi-select-dropdown').forEach(d => d.classList.remove('open'));
+    document.querySelectorAll('.multi-select-btn').forEach(b => b.classList.remove('open'));
+    if (!isOpen) {
+        dd.classList.add('open');
+        btn.classList.add('open');
+    }
+}
+
+function updateLabel(key) {
+    const checks  = [...document.querySelectorAll('.' + key + '-check:checked')];
+    const label   = document.getElementById(key + '-label');
+    const defaults = { dept: '全部部門', assignee: '全部人員' };
+    if (checks.length === 0) {
+        label.textContent = defaults[key];
+    } else if (checks.length === 1) {
+        label.textContent = checks[0].value;
+    } else {
+        label.textContent = checks[0].value + ' +' + (checks.length - 1);
+    }
+}
+
+// close dropdowns on outside click
+document.addEventListener('click', function(e) {
+    if (!e.target.closest('.multi-select-wrap')) {
+        document.querySelectorAll('.multi-select-dropdown').forEach(d => d.classList.remove('open'));
+        document.querySelectorAll('.multi-select-btn').forEach(b => b.classList.remove('open'));
+    }
+});
+</script>
+{% endblock %}

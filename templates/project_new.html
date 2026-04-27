@@ -1,0 +1,128 @@
+{% extends 'base.html' %}
+{% block title %}{% if parent %}{{ t('new_sub_of') }}{% else %}{{ t('nav_new_project') }}{% endif %} — Project Hub{% endblock %}
+{% block header_title %}{% if parent %}{{ t('new_sub_of') }}{% else %}{{ t('nav_new_project') }}{% endif %}{% endblock %}
+
+{% block content %}
+
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Overview</a></li>
+        {% if parent %}
+            <li class="breadcrumb-item">
+                <a href="{{ url_for('project_detail', project_id=parent.id) }}">{{ parent.title }}</a>
+            </li>
+            <li class="breadcrumb-item active">{{ t('new_sub_of') }}</li>
+        {% else %}
+            <li class="breadcrumb-item active">{{ t('nav_new_project') }}</li>
+        {% endif %}
+    </ol>
+</nav>
+
+<div class="row justify-content-center">
+<div class="col-12 col-lg-6">
+
+    {% if parent %}
+    <div style="display:flex; align-items:center; gap:9px; margin-bottom:14px;
+                padding:10px 14px; box-shadow:rgba(0,0,0,0.07) 0px 0px 0px 1px;
+                border-radius:6px; background:#fafafa;">
+        <i class="bi bi-diagram-3" style="font-size:11px; color:#aaa;"></i>
+        <span style="font-size:12px; color:#4d4d4d;">
+            {{ t('for_sub_of') }} <strong style="color:#171717;">{{ parent.title }}</strong> {{ t('new_sub_of') }}
+        </span>
+    </div>
+    {% endif %}
+
+    <div class="card">
+        <div style="padding:18px 22px 14px; border-bottom:1px solid rgba(0,0,0,0.05);">
+            <div class="label mb-1">{% if parent %}{{ t('new_sub_label') }}{% else %}{{ t('new_project_label') }}{% endif %}</div>
+            <h3 style="font-size:15px; font-weight:600; letter-spacing:-0.3px; color:#171717; margin:0;">
+                {% if parent %}{{ t('new_sub_title') }}{% else %}{{ t('new_project_title') }}{% endif %}
+            </h3>
+        </div>
+        <div style="padding:20px 22px 24px;">
+            <form method="POST"
+                  action="{%- if parent -%}{{ url_for('sub_project_new', project_id=parent.id) }}{%- else -%}{{ url_for('project_new') }}{%- endif -%}">
+
+                <!-- 專案名稱 -->
+                <div class="mb-3">
+                    <label for="title" class="form-label">
+                        {{ t('project_name') }} <span style="color:#dc2626;">*</span>
+                    </label>
+                    <input type="text" class="form-control" id="title" name="title"
+                           placeholder="{{ t('project_name_ph') }}" required autofocus>
+                </div>
+
+                <!-- 負責人 -->
+                <div class="mb-3">
+                    <label for="assignee_id" class="form-label">{{ t('project_assignee') }}</label>
+                    <select class="form-select" id="assignee_id" name="assignee_id">
+                        <option value="">{{ t('assignee_none') }}</option>
+                        {% for u in users %}
+                            <option value="{{ u.id }}">{{ u.name }} ·
+                                <span style="color:#aaa;">{{ u.department }}</span>
+                            </option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- 預計上線日期（僅母專案，必填） -->
+                {% if not parent %}
+                <div class="mb-3">
+                    <label for="launch_date" class="form-label">
+                        {{ t('project_launch_date') }} <span style="color:#dc2626;">*</span>
+                    </label>
+                    <input type="date" class="form-control" id="launch_date" name="launch_date" required>
+                </div>
+                {% endif %}
+
+                <!-- 說明 -->
+                <div class="mb-3">
+                    <label for="description" class="form-label">
+                        {{ t('description') }}
+                        <span style="color:#aaa; font-weight:400; font-size:11px;">（{{ t('optional') }}）</span>
+                    </label>
+                    <textarea class="form-control" id="description" name="description"
+                              rows="4" placeholder="{{ t('description_ph') }}"
+                              style="resize:vertical;"></textarea>
+                </div>
+
+                <!-- 專案效益 -->
+                <div class="mb-3">
+                    <label for="benefit" class="form-label">
+                        {{ t('project_benefit') }}
+                        <span style="color:#aaa; font-weight:400; font-size:11px;">（{{ t('optional') }}）</span>
+                    </label>
+                    <textarea class="form-control" id="benefit" name="benefit"
+                              rows="3" placeholder="{{ t('project_benefit_ph') }}"
+                              style="resize:vertical;"></textarea>
+                </div>
+
+                <div style="display:flex; gap:8px; margin-top:8px;">
+                    <button type="submit" class="btn btn-dark px-4 py-2">
+                        <i class="bi bi-check me-1" style="font-size:11px;"></i>{{ t('create_btn') }}
+                    </button>
+                    {% if parent %}
+                        <a href="{{ url_for('project_detail', project_id=parent.id) }}"
+                           class="btn btn-ghost px-4 py-2">{{ t('cancel') }}</a>
+                    {% else %}
+                        <a href="{{ url_for('index') }}" class="btn btn-ghost px-4 py-2">{{ t('cancel') }}</a>
+                    {% endif %}
+                </div>
+
+            </form>
+        </div>
+    </div>
+
+</div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.querySelector('form').addEventListener('submit', function() {
+    const btn = this.querySelector('button[type="submit"]');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" style="width:11px;height:11px;"></span>…';
+});
+</script>
+{% endblock %}

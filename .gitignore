@@ -1,0 +1,21 @@
+*.db
+*.db-shm
+*.db-wal
+__pycache__/
+*.pyc
+*.pyo
+.env
+static/uploads/*
+!static/uploads/.gitkeep
+venv/
+.venv/
+*.egg-info/
+dist/
+
+# AI tool skill files (not needed for deployment)
+.agent/
+.claude/
+.cursor/
+.kiro/
+.windsurf/
+design/

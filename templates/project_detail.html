@@ -1,0 +1,520 @@
+{% extends 'base.html' %}
+{% block title %}{{ project.title }} — Project Hub{% endblock %}
+{% block header_title %}{% if parent %}Sub-project{% else %}Project{% endif %}{% endblock %}
+
+{% block header_actions %}
+    {% if current_user and current_user.id == project.creator_id %}
+        <a href="{{ url_for('project_edit', project_id=project.id) }}"
+           class="btn btn-ghost btn-sm px-3 py-1">
+            <i class="bi bi-pencil me-1" style="font-size:11px;"></i>{{ t('edit') }}
+        </a>
+        <form method="POST" action="{{ url_for('project_delete', project_id=project.id) }}"
+              style="display:inline;"
+              onsubmit="return confirm('{{ t('confirm_del_project') }}「{{ project.title }}」？{% if not parent %}{{ t('sub_also_deleted') }}{% endif %}')">
+            <button type="submit" class="btn btn-sm px-3 py-1"
+                    style="background:#fff1f2; color:#dc2626; border:none;
+                           box-shadow:rgba(220,38,38,0.15) 0px 0px 0px 1px;
+                           border-radius:6px; font-size:12.5px; font-weight:500;">
+                <i class="bi bi-trash me-1" style="font-size:11px;"></i>{{ t('delete') }}
+            </button>
+        </form>
+    {% endif %}
+{% endblock %}
+
+{% block content %}
+
+<!-- Breadcrumb -->
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Overview</a></li>
+        {% if parent %}
+            <li class="breadcrumb-item">
+                <a href="{{ url_for('project_detail', project_id=parent.id) }}">{{ parent.title }}</a>
+            </li>
+        {% endif %}
+        <li class="breadcrumb-item active">{{ project.title }}</li>
+    </ol>
+</nav>
+
+<!-- ── Latest pulse banner ────────────────────────────────── -->
+{% if pulses %}
+    {% set lp = pulses[0] %}
+    {% set ps = pulse_status.get(lp.status, {'t_key':'pulse_new','color':'#6b7280'}) %}
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:16px; padding:10px 16px;
+                border-radius:6px; background:#fafafa;
+                box-shadow:rgba(0,0,0,0.06) 0px 0px 0px 1px;">
+        <span style="width:8px; height:8px; border-radius:50%; background:{{ ps.color }};
+                     flex-shrink:0; box-shadow:0 0 0 3px {{ ps.color }}22;"></span>
+        <span style="font-size:12px; font-weight:600; color:#171717;">{{ t(ps.t_key) }}</span>
+        <span style="color:#d0d0d0;">·</span>
+        <span style="font-size:12px; color:#4d4d4d; flex:1;">{{ lp.message }}</span>
+        <span class="mono" style="font-size:10px; color:#bbb; white-space:nowrap; flex-shrink:0;">
+            {{ lp.user_name }} · {{ lp.created_at | dtshort }}
+        </span>
+    </div>
+{% endif %}
+
+<div class="row g-4">
+
+<!-- ══ Left ════════════════════════════════════════════════════ -->
+<div class="col-12 col-lg-8">
+
+    <!-- Project card -->
+    <div class="card mb-3" style="overflow:hidden;">
+
+        <div style="padding:16px 20px 14px; border-bottom:1px solid rgba(0,0,0,0.05);">
+            <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+                {% if parent %}
+                    <span style="display:inline-flex; align-items:center; gap:4px; padding:2px 8px;
+                                 background:#f0f0f0; border-radius:4px; font-size:11px; font-weight:500; color:#666;">
+                        <i class="bi bi-diagram-3" style="font-size:10px;"></i> Sub-project
+                    </span>
+                {% else %}
+                    <span style="display:inline-flex; align-items:center; gap:4px; padding:2px 8px;
+                                 background:#171717; border-radius:4px; font-size:11px; font-weight:500; color:#fff;">
+                        <i class="bi bi-folder" style="font-size:10px;"></i> Project
+                    </span>
+                {% endif %}
+                <span class="mono label">#{{ project.id }}</span>
+            </div>
+            <h2 style="font-size:18px; font-weight:600; letter-spacing:-0.4px; color:#171717; line-height:1.3; margin:0;">
+                {{ project.title }}
+            </h2>
+        </div>
+
+        <!-- Meta strip -->
+        <div style="padding:11px 20px; background:#fafafa; border-bottom:1px solid rgba(0,0,0,0.05);
+                    display:flex; align-items:center; gap:16px; flex-wrap:wrap;">
+
+            <!-- Creator -->
+            <div style="display:flex; align-items:center; gap:7px;">
+                <div style="width:22px; height:22px; border-radius:50%; background:#e0e0e0;
+                            display:flex; align-items:center; justify-content:center;
+                            font-size:9px; font-weight:600; color:#555; flex-shrink:0;">
+                    {{ project.creator_name[0] }}
+                </div>
+                <div>
+                    <div style="font-size:11px; color:#aaa; line-height:1;">{{ t('project_creator') }}</div>
+                    <div style="font-size:12px; font-weight:500; color:#171717;">{{ project.creator_name }}</div>
+                </div>
+            </div>
+
+            <!-- Assignee -->
+            {% if project.assignee_name %}
+            <div style="display:flex; align-items:center; gap:7px;">
+                <div style="width:22px; height:22px; border-radius:50%; background:#171717;
+                            display:flex; align-items:center; justify-content:center;
+                            font-size:9px; font-weight:600; color:#fff; flex-shrink:0;">
+                    {{ project.assignee_name[0] }}
+                </div>
+                <div>
+                    <div style="font-size:11px; color:#aaa; line-height:1;">{{ t('assignee') }}</div>
+                    <div style="font-size:12px; font-weight:500; color:#171717;">{{ project.assignee_name }}</div>
+                </div>
+            </div>
+            {% endif %}
+
+            <div style="display:flex; align-items:center; gap:5px;">
+                <i class="bi bi-calendar3" style="font-size:10px; color:#bbb;"></i>
+                <span class="mono" style="font-size:11px; color:#aaa;">{{ project.created_at | datefmt }}</span>
+            </div>
+
+            {% if not parent %}
+            <div style="display:flex; align-items:center; gap:5px;">
+                <i class="bi bi-diagram-3" style="font-size:10px; color:#bbb;"></i>
+                <span class="mono" style="font-size:11px; color:#aaa;">{{ sub_projects|length }} sub</span>
+            </div>
+            {% endif %}
+
+            <div style="display:flex; align-items:center; gap:5px;">
+                <i class="bi bi-chat" style="font-size:10px; color:#bbb;"></i>
+                <span class="mono" style="font-size:11px; color:#aaa;">{{ comments|length }} comments</span>
+            </div>
+
+        </div>
+
+        <!-- Description -->
+        <div style="padding:20px 20px 22px;">
+            {% if project.description %}
+                <div style="font-size:13px; color:#4d4d4d; line-height:1.8; white-space:pre-wrap;">{{ project.description }}</div>
+            {% else %}
+                <div style="font-size:12px; color:#ccc; font-style:italic;">{{ t('no_description') }}</div>
+            {% endif %}
+        </div>
+
+    </div>
+
+    <!-- ── 專案進度 ──────────────────────────────────── -->
+    {% set cur_status = pulses[0].status if pulses else '' %}
+    <div class="card mb-3" style="overflow:hidden;" id="pulse">
+
+        <div style="padding:13px 20px; background:var(--blue-deep);
+                    display:flex; align-items:center; gap:8px;">
+            <i class="bi bi-activity" style="font-size:12px; color:rgba(255,255,255,0.7);"></i>
+            <span style="font-size:13px; font-weight:600; letter-spacing:-0.2px; color:#fff;">{{ t('pulse_section_title') }}</span>
+        </div>
+
+        <!-- 狀態快速切換（只有負責人或建立者可操作） -->
+        {% if can_update_pulse %}
+        <div style="padding:16px 20px; background:#fff; border-bottom:1px solid rgba(0,0,0,0.06);">
+            <div style="font-size:10.5px; font-weight:700; color:#bbb; letter-spacing:0.08em;
+                        text-transform:uppercase; margin-bottom:10px;">目前狀態</div>
+            <div style="display:flex; gap:8px;">
+                {% for key, ps in pulse_status.items() %}
+                <button id="sbtn-{{ key }}"
+                        onclick="updateStatus('{{ key }}')"
+                        data-color="{{ ps.color }}"
+                        data-label="{{ t(ps.t_key) }}"
+                        style="flex:1; padding:12px 8px; border-radius:10px;
+                               border:2px solid #e5e5e5; background:#fff;
+                               cursor:pointer; transition:all 0.15s;
+                               display:flex; flex-direction:column; align-items:center; gap:7px;">
+                    <span style="width:11px; height:11px; border-radius:50%;
+                                 background:{{ ps.color }}; display:block; flex-shrink:0;
+                                 transition:box-shadow 0.15s;"></span>
+                    <span style="font-size:12px; font-weight:600; color:#555;">{{ t(ps.t_key) }}</span>
+                </button>
+                {% endfor %}
+            </div>
+        </div>
+        {% elif not session.get('user_id') %}
+        <div style="padding:12px 20px; background:#fafafa; border-bottom:1px solid rgba(0,0,0,0.05);
+                    text-align:center; font-size:12px; color:#aaa;">
+            <a href="{{ url_for('login') }}" style="color:#171717; font-weight:600; text-decoration:none;">{{ t('login') }}</a> {{ t('login_to_pulse') }}
+        </div>
+        {% else %}
+        <div style="padding:12px 20px; background:#fafafa; border-bottom:1px solid rgba(0,0,0,0.05);
+                    text-align:center; font-size:12px; color:#aaa;">
+            {{ t('pulse_no_permission_hint') }}
+        </div>
+        {% endif %}
+
+        <!-- 歷程紀錄 -->
+        <div id="pulse-list">
+            {% if pulses %}
+            {% for pulse in pulses %}
+            {% set ps = pulse_status.get(pulse.status, {'t_key':'pulse_new','color':'#6b7280'}) %}
+            <div style="display:flex; align-items:center; gap:10px; padding:10px 20px;
+                        border-bottom:1px solid rgba(0,0,0,0.04);">
+                <span style="width:8px; height:8px; border-radius:50%; background:{{ ps.color }};
+                             flex-shrink:0; box-shadow:0 0 0 2px {{ ps.color }}22;"></span>
+                <span style="display:inline-flex; align-items:center; padding:1px 9px;
+                             border-radius:20px; font-size:11px; font-weight:600;
+                             background:{{ ps.color }}15; color:{{ ps.color }}; flex-shrink:0;">
+                    {{ t(ps.t_key) }}
+                </span>
+                <span style="font-size:12px; color:#555; flex:1;">{{ pulse.user_name }}</span>
+                <span class="mono" style="font-size:10.5px; color:#bbb; flex-shrink:0;">{{ pulse.created_at | dtfmt }}</span>
+                {% if current_user and current_user.id == pulse.user_id %}
+                <form method="POST" action="{{ url_for('pulse_delete', pulse_id=pulse.id) }}"
+                      onsubmit="return confirm('{{ t('confirm_del_pulse') }}')" style="margin:0;">
+                    <button type="submit"
+                            style="background:none; border:none; cursor:pointer;
+                                   color:#ccc; padding:0 2px; font-size:13px; line-height:1;">
+                        <i class="bi bi-x"></i>
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+            {% endfor %}
+            {% else %}
+            <div id="pulse-empty" style="text-align:center; padding:24px 20px; color:#ccc;">
+                <div style="font-size:20px; margin-bottom:6px;">📡</div>
+                <div style="font-size:12px;">{{ t('no_pulse') }}</div>
+            </div>
+            {% endif %}
+        </div>
+
+    </div>
+
+    <!-- ── Sub-projects ────────────────────────────────────── -->
+    {% if not parent %}
+    <div class="card" style="overflow:hidden;">
+
+        <div style="padding:13px 20px; background:var(--blue-mid);
+                    display:flex; align-items:center; justify-content:space-between;">
+            <div style="display:flex; align-items:center; gap:8px;">
+                <i class="bi bi-diagram-3" style="font-size:12px; color:rgba(255,255,255,0.7);"></i>
+                <span style="font-size:13px; font-weight:600; letter-spacing:-0.2px; color:#fff;">{{ t('subprojects') }}</span>
+                <span class="mono" style="font-size:11px; color:rgba(255,255,255,0.55);">{{ sub_projects|length }}</span>
+            </div>
+            {% if session.get('user_id') %}
+                <a href="{{ url_for('sub_project_new', project_id=project.id) }}"
+                   class="btn btn-sm px-3 py-1"
+                   style="font-size:12px; background:rgba(255,255,255,0.2); color:#fff;
+                          border:1px solid rgba(255,255,255,0.35); border-radius:6px;">
+                    <i class="bi bi-plus" style="font-size:11px;"></i> {{ t('add_sub') }}
+                </a>
+            {% endif %}
+        </div>
+
+        {% if sub_projects %}
+            <div style="display:grid; grid-template-columns:12px 1fr 90px 52px 80px;
+                        padding:8px 20px; background:#fafafa;
+                        box-shadow:rgba(0,0,0,0.04) 0px -1px 0px inset;">
+                <div></div>
+                <div class="label">{{ t('col_name') }}</div>
+                <div class="label">{{ t('col_assignee') }}</div>
+                <div class="label" style="text-align:right;">{{ t('col_comments') }}</div>
+                <div class="label" style="text-align:right;">{{ t('col_date') }}</div>
+            </div>
+
+            {% for sub in sub_projects %}
+            <a href="{{ url_for('project_detail', project_id=sub.id) }}"
+               style="display:grid; grid-template-columns:12px 1fr 90px 52px 80px;
+                      align-items:center; padding:11px 20px;
+                      text-decoration:none; color:inherit;
+                      border-top:1px solid rgba(0,0,0,0.04); transition:background 0.1s;"
+               onmouseover="this.style.background='#fafafa'"
+               onmouseout="this.style.background='transparent'">
+
+                <!-- Pulse dot -->
+                <div>
+                    {% if sub.latest_pulse %}
+                        {% set sps = pulse_status.get(sub.latest_pulse, {'color':'#6b7280'}) %}
+                        <span style="width:6px; height:6px; border-radius:50%; background:{{ sps.color }}; display:inline-block;"></span>
+                    {% else %}
+                        <span style="width:6px; height:6px; border-radius:50%; background:#e5e5e5; display:inline-block;"></span>
+                    {% endif %}
+                </div>
+
+                <div style="display:flex; align-items:center; gap:7px; min-width:0; padding-right:8px;">
+                    <i class="bi bi-arrow-return-right" style="font-size:10px; color:#ccc; flex-shrink:0;"></i>
+                    <span style="font-size:12.5px; font-weight:500; color:#171717;
+                                 white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                        {{ sub.title }}
+                    </span>
+                </div>
+
+                <div style="font-size:11px; color:#808080; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">
+                    {{ sub.assignee_name or sub.creator_name }}
+                </div>
+
+                <div style="text-align:right;">
+                    {% if sub.comment_count > 0 %}
+                        <span class="mono" style="font-size:12px; font-weight:500; color:#171717;">{{ sub.comment_count }}</span>
+                    {% else %}
+                        <span class="mono" style="font-size:12px; color:#ddd;">—</span>
+                    {% endif %}
+                </div>
+
+                <div style="text-align:right;">
+                    <span class="mono" style="font-size:10.5px; color:#aaa;">{{ sub.created_at | datefmt }}</span>
+                </div>
+            </a>
+            {% endfor %}
+
+        {% else %}
+            <div style="text-align:center; padding:36px 20px; color:#ccc;">
+                <i class="bi bi-diagram-3" style="font-size:22px; display:block; margin-bottom:8px;"></i>
+                <div style="font-size:12px;">{{ t('no_subprojects') }}</div>
+            </div>
+        {% endif %}
+
+    </div>
+    {% endif %}
+
+</div>
+
+<!-- ══ Right: Comments ═════════════════════════════════════════ -->
+<div class="col-12 col-lg-4">
+    <div class="card" style="overflow:hidden; position:sticky; top:calc(var(--header-h) + 16px);" id="comments">
+
+        <div style="padding:13px 16px; background:var(--blue-sky);
+                    display:flex; align-items:center; gap:8px;">
+            <i class="bi bi-chat-dots" style="font-size:12px; color:rgba(255,255,255,0.8);"></i>
+            <span style="font-size:13px; font-weight:600; letter-spacing:-0.2px; color:#fff;">{{ t('comments') }}</span>
+            <span class="mono" style="font-size:11px; color:rgba(255,255,255,0.65);">{{ comments|length }}</span>
+        </div>
+
+        <div id="comment-list" style="max-height:420px; overflow-y:auto;">
+            {% if comments %}
+                {% for comment in comments %}
+                <div style="padding:9px 14px; border-bottom:1px solid rgba(0,0,0,0.05);">
+                    <div style="display:flex; align-items:center; gap:6px; margin-bottom:4px;">
+                        <div style="width:20px; height:20px; border-radius:50%; background:var(--blue-sky);
+                                    display:flex; align-items:center; justify-content:center;
+                                    font-size:9px; font-weight:700; color:#fff; flex-shrink:0;">
+                            {{ comment.user_name[0] }}
+                        </div>
+                        <span style="font-size:12.5px; font-weight:600; color:var(--text-dark); flex:1;">{{ comment.user_name }}</span>
+                        <span class="mono" style="font-size:10.5px; color:var(--text-muted); flex-shrink:0;">
+                            {{ comment.created_at | dtfmt }}
+                        </span>
+                        {% if current_user and current_user.id == comment.user_id %}
+                            <form method="POST" action="{{ url_for('comment_delete', comment_id=comment.id) }}"
+                                  onsubmit="return confirm('{{ t('confirm_del_comment') }}')">
+                                <button type="submit"
+                                        style="background:none; border:none; cursor:pointer;
+                                               color:#aaa; padding:0 2px; font-size:13px; line-height:1;">
+                                    <i class="bi bi-x"></i>
+                                </button>
+                            </form>
+                        {% endif %}
+                    </div>
+                    <div style="font-size:12.5px; color:var(--text-dark); line-height:1.6;
+                                white-space:pre-wrap; padding-left:26px;">
+                        {{ comment.content }}
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div style="text-align:center; padding:28px 16px; color:var(--text-light);">
+                    <i class="bi bi-chat" style="font-size:20px; display:block; margin-bottom:6px;"></i>
+                    <div style="font-size:12px;">{{ t('no_comments') }}</div>
+                </div>
+            {% endif %}
+        </div>
+
+        {% if session.get('user_id') %}
+            <div style="padding:12px 16px; border-top:1px solid rgba(0,0,0,0.05); background:#fafafa;">
+                <form method="POST" action="{{ url_for('comment_add', project_id=project.id) }}">
+                    <textarea class="form-control mb-2" name="content" rows="3"
+                              placeholder="{{ t('comment_placeholder') }}" required
+                              style="resize:none; font-size:12px;"></textarea>
+                    <button type="submit" class="btn btn-dark w-100 py-2 submit-btn" style="font-size:12.5px;">
+                        <i class="bi bi-send me-1" style="font-size:11px;"></i>{{ t('send') }}
+                    </button>
+                </form>
+            </div>
+        {% else %}
+            <div style="padding:12px 16px; background:#fafafa; border-top:1px solid rgba(0,0,0,0.05);
+                        text-align:center; font-size:12px; color:#aaa;">
+                <a href="{{ url_for('login') }}" style="color:#171717; font-weight:600; text-decoration:none;">{{ t('login') }}</a> {{ t('login_to_comment') }}
+            </div>
+        {% endif %}
+
+    </div>
+</div>
+
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const PD_STR = {
+    submitting: "{{ t('submitting') }}",
+    send:       "{{ t('send') }}",
+    failed:     "{{ t('submit_failed') }}"
+};
+
+// ── 狀態按鈕：高亮當前狀態 ────────────────────────────────────
+const PULSE_URL = "{{ url_for('pulse_add', project_id=project.id) }}";
+let activeStatus = "{{ cur_status }}";
+
+function applyStatusBtn(key) {
+    document.querySelectorAll('[id^="sbtn-"]').forEach(btn => {
+        const isActive = btn.id === 'sbtn-' + key;
+        const color    = btn.dataset.color;
+        btn.style.background   = isActive ? color : '#fff';
+        btn.style.borderColor  = isActive ? color : '#e5e5e5';
+        btn.style.transform    = isActive ? 'scale(1.03)' : 'scale(1)';
+        btn.style.boxShadow    = isActive ? `0 2px 8px ${color}44` : 'none';
+        const span = btn.querySelector('span:last-child');
+        if (span) span.style.color = isActive ? '#fff' : '#555';
+        const dot  = btn.querySelector('span:first-child');
+        if (dot)  dot.style.background = isActive ? 'rgba(255,255,255,0.85)' : color;
+    });
+}
+
+async function updateStatus(key) {
+    if (key === activeStatus) return;   // 點同一個不重送
+
+    const btn = document.getElementById('sbtn-' + key);
+    if (btn) { btn.style.opacity = '0.6'; btn.disabled = true; }
+
+    try {
+        const res = await fetch(PULSE_URL, {
+            method: 'POST',
+            headers: { 'X-Requested-With': 'fetch' },
+            body: new URLSearchParams({ status: key, message: '' })
+        });
+        const data = await res.json();
+        if (!data.ok) throw new Error(data.error);
+
+        activeStatus = key;
+        applyStatusBtn(key);
+
+        // 在歷程最上方插入新紀錄
+        const list  = document.getElementById('pulse-list');
+        const empty = document.getElementById('pulse-empty');
+        if (empty) empty.remove();
+
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:10px 20px;border-bottom:1px solid rgba(0,0,0,0.04);';
+        row.innerHTML = `
+            <span style="width:8px;height:8px;border-radius:50%;background:${data.status_color};
+                         flex-shrink:0;box-shadow:0 0 0 2px ${data.status_color}22;"></span>
+            <span style="display:inline-flex;align-items:center;padding:1px 9px;border-radius:20px;
+                         font-size:11px;font-weight:600;
+                         background:${data.status_color}15;color:${data.status_color};flex-shrink:0;">
+                ${data.status_label}
+            </span>
+            <span style="font-size:12px;color:#555;flex:1;">${data.user_name}</span>
+            <span style="font-size:10.5px;color:#bbb;flex-shrink:0;font-family:monospace;">${data.created_at}</span>`;
+        list.prepend(row);
+
+    } catch(err) {
+        alert(PD_STR.failed + (err.message || ''));
+    } finally {
+        if (btn) { btn.style.opacity = '1'; btn.disabled = false; }
+    }
+}
+
+// 頁面載入時初始化按鈕狀態
+applyStatusBtn(activeStatus);
+
+// ── 留言：fetch 送出，確認成功後更新畫面 ─────────────────────
+const commentForm = document.querySelector('form[action*="/comment"]');
+if (commentForm) {
+    commentForm.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        const textarea = this.querySelector('textarea');
+        const btn      = this.querySelector('.submit-btn');
+        const content  = textarea.value.trim();
+        if (!content) return;
+
+        btn.disabled = true;
+        btn.style.opacity = '0.7';
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" style="width:11px;height:11px;border-width:2px;"></span>' + PD_STR.submitting;
+
+        try {
+            const res = await fetch(this.action, {
+                method: 'POST',
+                headers: { 'X-Requested-With': 'fetch' },
+                body: new URLSearchParams(new FormData(this))
+            });
+            const data = await res.json();
+            if (!data.ok) throw new Error(data.error);
+
+            const list = document.getElementById('comment-list');
+            const empty = list.querySelector('div[style*="text-align:center"]');
+            if (empty) empty.remove();
+
+            const initial = data.user_name[0] || '?';
+            const item = document.createElement('div');
+            item.style.cssText = 'padding:9px 14px; border-bottom:1px solid rgba(0,0,0,0.05);';
+            item.innerHTML = `
+                <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+                    <div style="width:20px;height:20px;border-radius:50%;background:var(--blue-sky);
+                                display:flex;align-items:center;justify-content:center;
+                                font-size:9px;font-weight:700;color:#fff;flex-shrink:0;">${initial}</div>
+                    <span style="font-size:12.5px;font-weight:600;color:var(--text-dark);flex:1;">${data.user_name}</span>
+                    <span style="font-size:10.5px;color:var(--text-muted);font-family:monospace;">${data.created_at}</span>
+                </div>
+                <div style="font-size:12.5px;color:var(--text-dark);line-height:1.6;white-space:pre-wrap;padding-left:26px;">${data.content.replace(/</g,'&lt;')}</div>`;
+            list.appendChild(item);
+            list.scrollTop = list.scrollHeight;
+            textarea.value = '';
+        } catch(err) {
+            alert(PD_STR.failed + (err.message || ''));
+        } finally {
+            btn.disabled = false;
+            btn.style.opacity = '1';
+            btn.innerHTML = '<i class="bi bi-send me-1" style="font-size:11px;"></i>' + PD_STR.send;
+        }
+    });
+}
+</script>
+{% endblock %}
