@@ -4,6 +4,16 @@
 
 {% block content %}
 
+{% set dept_styles = {
+    '會計':     'background:#dbeafe; color:#1d4ed8;',
+    '財務':     'background:#dcfce7; color:#15803d;',
+    '投資人':   'background:#f3e8ff; color:#7e22ce;',
+    '財務規劃': 'background:#ccfbf1; color:#0f766e;',
+    '法務':     'background:#ffedd5; color:#c2410c;',
+    '自動化':   'background:#e0e7ff; color:#3730a3;',
+    '財務長':   'background:#ffe4e6; color:#be123c;',
+} %}
+
 <style>
     .list-table { width:100%; border-collapse:separate; border-spacing:0; }
     .list-table thead th {
@@ -25,6 +35,7 @@
         color: var(--text-muted);
         text-decoration: none;
         transition: color 0.12s;
+        cursor: pointer;
     }
     .list-table thead th a:hover { color: var(--blue-mid); }
     .list-table thead th a.active { color: var(--blue-deep); font-weight:700; }
@@ -161,6 +172,13 @@
     }
     .filter-clear-btn:hover { background: var(--blue-pale); color: var(--blue-deep); border-color: var(--blue-mid); }
 
+    /* Department badge */
+    .dept-badge {
+        display: inline-flex; align-items: center;
+        padding: 2px 8px; border-radius: 20px;
+        font-size: 11px; font-weight: 600; white-space: nowrap;
+    }
+
     /* Priority badge */
     .priority-badge {
         display: inline-flex; align-items: center; gap: 4px;
@@ -268,57 +286,45 @@
         <thead>
             <tr>
                 <th style="width:28%;">
-                    {% set col = 'title' %}
-                    <a href="{{ url_for('project_list', sort=col, dir=(next_dir if sort_by==col else 'asc')) }}"
-                       class="{{ 'active' if sort_by == col else '' }}">
+                    <a onclick="handleSort(event,'title')" id="sh-title" class="{{ 'active' if sort_by=='title' else '' }}">
                         {{ t('col_name') }}
-                        <i class="bi bi-chevron-{{ 'down' if (sort_by==col and sort_dir=='asc') else ('up' if (sort_by==col and sort_dir=='desc') else 'expand') }}"
-                           style="font-size:9px; opacity:{{ '1' if sort_by==col else '0.4' }};"></i>
+                        <i id="si-title" class="bi bi-chevron-{{ 'down' if (sort_by=='title' and sort_dir=='asc') else ('up' if (sort_by=='title' and sort_dir=='desc') else 'expand') }}"
+                           style="font-size:9px; opacity:{{ '1' if sort_by=='title' else '0.4' }};"></i>
                     </a>
                 </th>
                 <th style="width:13%;">
-                    {% set col = 'assignee' %}
-                    <a href="{{ url_for('project_list', sort=col, dir=(next_dir if sort_by==col else 'asc')) }}"
-                       class="{{ 'active' if sort_by == col else '' }}">
+                    <a onclick="handleSort(event,'assignee')" id="sh-assignee" class="{{ 'active' if sort_by=='assignee' else '' }}">
                         {{ t('col_assignee') }}
-                        <i class="bi bi-chevron-{{ 'down' if (sort_by==col and sort_dir=='asc') else ('up' if (sort_by==col and sort_dir=='desc') else 'expand') }}"
-                           style="font-size:9px; opacity:{{ '1' if sort_by==col else '0.4' }};"></i>
+                        <i id="si-assignee" class="bi bi-chevron-{{ 'down' if (sort_by=='assignee' and sort_dir=='asc') else ('up' if (sort_by=='assignee' and sort_dir=='desc') else 'expand') }}"
+                           style="font-size:9px; opacity:{{ '1' if sort_by=='assignee' else '0.4' }};"></i>
                     </a>
                 </th>
                 <th style="width:13%;">
-                    {% set col = 'department' %}
-                    <a href="{{ url_for('project_list', sort=col, dir=(next_dir if sort_by==col else 'asc')) }}"
-                       class="{{ 'active' if sort_by == col else '' }}">
+                    <a onclick="handleSort(event,'department')" id="sh-department" class="{{ 'active' if sort_by=='department' else '' }}">
                         {{ t('col_department') }}
-                        <i class="bi bi-chevron-{{ 'down' if (sort_by==col and sort_dir=='asc') else ('up' if (sort_by==col and sort_dir=='desc') else 'expand') }}"
-                           style="font-size:9px; opacity:{{ '1' if sort_by==col else '0.4' }};"></i>
+                        <i id="si-department" class="bi bi-chevron-{{ 'down' if (sort_by=='department' and sort_dir=='asc') else ('up' if (sort_by=='department' and sort_dir=='desc') else 'expand') }}"
+                           style="font-size:9px; opacity:{{ '1' if sort_by=='department' else '0.4' }};"></i>
                     </a>
                 </th>
                 <th style="width:14%;">
-                    {% set col = 'status' %}
-                    <a href="{{ url_for('project_list', sort=col, dir=(next_dir if sort_by==col else 'asc')) }}"
-                       class="{{ 'active' if sort_by == col else '' }}">
+                    <a onclick="handleSort(event,'status')" id="sh-status" class="{{ 'active' if sort_by=='status' else '' }}">
                         {{ t('col_status') }}
-                        <i class="bi bi-chevron-{{ 'down' if (sort_by==col and sort_dir=='asc') else ('up' if (sort_by==col and sort_dir=='desc') else 'expand') }}"
-                           style="font-size:9px; opacity:{{ '1' if sort_by==col else '0.4' }};"></i>
+                        <i id="si-status" class="bi bi-chevron-{{ 'down' if (sort_by=='status' and sort_dir=='asc') else ('up' if (sort_by=='status' and sort_dir=='desc') else 'expand') }}"
+                           style="font-size:9px; opacity:{{ '1' if sort_by=='status' else '0.4' }};"></i>
                     </a>
                 </th>
                 <th style="width:14%;">
-                    {% set col = 'launch_date' %}
-                    <a href="{{ url_for('project_list', sort=col, dir=(next_dir if sort_by==col else 'asc')) }}"
-                       class="{{ 'active' if sort_by == col else '' }}">
+                    <a onclick="handleSort(event,'launch_date')" id="sh-launch_date" class="{{ 'active' if sort_by=='launch_date' else '' }}">
                         {{ t('col_launch_date') }}
-                        <i class="bi bi-chevron-{{ 'down' if (sort_by==col and sort_dir=='asc') else ('up' if (sort_by==col and sort_dir=='desc') else 'expand') }}"
-                           style="font-size:9px; opacity:{{ '1' if sort_by==col else '0.4' }};"></i>
+                        <i id="si-launch_date" class="bi bi-chevron-{{ 'down' if (sort_by=='launch_date' and sort_dir=='asc') else ('up' if (sort_by=='launch_date' and sort_dir=='desc') else 'expand') }}"
+                           style="font-size:9px; opacity:{{ '1' if sort_by=='launch_date' else '0.4' }};"></i>
                     </a>
                 </th>
                 <th style="width:10%;">
-                    {% set col = 'priority' %}
-                    <a href="{{ url_for('project_list', sort=col, dir=(next_dir if sort_by==col else 'desc')) }}"
-                       class="{{ 'active' if sort_by == col else '' }}">
+                    <a onclick="handleSort(event,'priority')" id="sh-priority" class="{{ 'active' if sort_by=='priority' else '' }}">
                         重要性
-                        <i class="bi bi-chevron-{{ 'down' if (sort_by==col and sort_dir=='asc') else ('up' if (sort_by==col and sort_dir=='desc') else 'expand') }}"
-                           style="font-size:9px; opacity:{{ '1' if sort_by==col else '0.4' }};"></i>
+                        <i id="si-priority" class="bi bi-chevron-{{ 'down' if (sort_by=='priority' and sort_dir=='asc') else ('up' if (sort_by=='priority' and sort_dir=='desc') else 'expand') }}"
+                           style="font-size:9px; opacity:{{ '1' if sort_by=='priority' else '0.4' }};"></i>
                     </a>
                 </th>
             </tr>
@@ -328,14 +334,17 @@
             {% set children = children_map.get(p.id, []) %}
             {% set has_children = children | length > 0 %}
             {% set p_pulse = pulse_status.get(p.latest_pulse) %}
+            {% set can_edit_p = session.get('user_id') and (session['user_id'] == p.creator_id or session['user_id'] == p.assignee_id) %}
 
             <!-- 母專案 row -->
-            {% set can_edit_p = session.get('user_id') and (session['user_id'] == p.creator_id or session['user_id'] == p.assignee_id) %}
             <tr class="row-parent"
                 data-pid="{{ p.id }}"
                 data-title="{{ p.title | lower }}"
                 data-dept="{{ p.assignee_department or '' }}"
                 data-assignee="{{ p.assignee_name or '' }}"
+                data-status="{{ p.latest_pulse or '' }}"
+                data-launch-date="{{ p.launch_date | datefmt if p.launch_date else '' }}"
+                data-priority="{{ p.priority or 'low' }}"
                 onclick="navProject(event, '{{ url_for('project_detail', project_id=p.id) }}')">
                 <td>
                     <div style="display:flex; align-items:center; gap:6px;">
@@ -355,21 +364,16 @@
                 </td>
                 <td>
                     {% if p.assignee_name %}
-                        <span style="display:inline-flex; align-items:center; gap:6px;">
-                            <span style="width:22px; height:22px; background:var(--blue-sky); border-radius:50%;
-                                         display:inline-flex; align-items:center; justify-content:center;
-                                         color:#fff; font-size:10px; font-weight:700; flex-shrink:0;">
-                                {{ p.assignee_name[0] }}
-                            </span>
-                            <span style="font-size:12.5px;">{{ p.assignee_name }}</span>
-                        </span>
+                        <span style="font-size:12.5px;">{{ p.assignee_name }}</span>
                     {% else %}
                         <span style="color:var(--text-light);">—</span>
                     {% endif %}
                 </td>
                 <td>
                     {% if p.assignee_department %}
-                        <span style="font-size:12px; color:var(--text-mid);">{{ p.assignee_department }}</span>
+                        <span class="dept-badge" style="{{ dept_styles.get(p.assignee_department, 'background:#f3f4f6; color:#6b7280;') }}">
+                            {{ p.assignee_department }}
+                        </span>
                     {% else %}
                         <span style="color:var(--text-light);">—</span>
                     {% endif %}
@@ -432,21 +436,16 @@
                 </td>
                 <td>
                     {% if child.assignee_name %}
-                        <span style="display:inline-flex; align-items:center; gap:6px;">
-                            <span style="width:22px; height:22px; background:var(--blue-sky); border-radius:50%;
-                                         display:inline-flex; align-items:center; justify-content:center;
-                                         color:#fff; font-size:10px; font-weight:700; flex-shrink:0;">
-                                {{ child.assignee_name[0] }}
-                            </span>
-                            <span style="font-size:12.5px;">{{ child.assignee_name }}</span>
-                        </span>
+                        <span style="font-size:12.5px;">{{ child.assignee_name }}</span>
                     {% else %}
                         <span style="color:var(--text-light);">—</span>
                     {% endif %}
                 </td>
                 <td>
                     {% if child.assignee_department %}
-                        <span style="font-size:12px; color:var(--text-mid);">{{ child.assignee_department }}</span>
+                        <span class="dept-badge" style="{{ dept_styles.get(child.assignee_department, 'background:#f3f4f6; color:#6b7280;') }}">
+                            {{ child.assignee_department }}
+                        </span>
                     {% else %}
                         <span style="color:var(--text-light);">—</span>
                     {% endif %}
@@ -492,8 +491,9 @@
 
 {% block scripts %}
 <script>
+/* ── Navigation ── */
 function navProject(e, url) {
-    if (e.target.closest('.toggle-btn')) return;
+    if (e.target.closest('.toggle-btn') || e.target.closest('.priority-wrap')) return;
     location.href = url;
 }
 
@@ -502,34 +502,103 @@ function toggleChildren(btn) {
     const chevron  = document.getElementById('chevron-' + parentId);
     const rows     = document.querySelectorAll('[data-child-of="' + parentId + '"]');
     const isOpen   = rows.length > 0 && !rows[0].classList.contains('hidden');
-
     rows.forEach(r => r.classList.toggle('hidden', isOpen));
-    if (chevron) {
-        chevron.className = isOpen ? 'bi bi-chevron-right' : 'bi bi-chevron-down';
-    }
+    if (chevron) chevron.className = isOpen ? 'bi bi-chevron-right' : 'bi bi-chevron-down';
+}
+
+/* ── Client-side sort (no page reload) ── */
+let curSort = '{{ sort_by }}';
+let curDir  = '{{ sort_dir }}';
+
+const SORT_KEYS = {
+    title:       r => r.dataset.title || '',
+    assignee:    r => (r.dataset.assignee || '').toLowerCase(),
+    department:  r => (r.dataset.dept || '').toLowerCase(),
+    status:      r => ({'new':1,'process':2,'done':3}[r.dataset.status] || 0),
+    launch_date: r => r.dataset.launchDate || '',
+    priority:    r => ({'high':3,'medium':2,'low':1}[r.dataset.priority] || 1),
+};
+
+const DEFAULT_SORT_DIR = { priority: 'desc' };
+
+function handleSort(e, col) {
+    e.preventDefault();
+    const newDir = (curSort === col)
+        ? (curDir === 'asc' ? 'desc' : 'asc')
+        : (DEFAULT_SORT_DIR[col] || 'asc');
+    curSort = col;
+    curDir  = newDir;
+    sortTable(col, newDir);
+    updateSortHeaders(col, newDir);
+}
+
+function sortTable(col, dir) {
+    const tbody    = document.querySelector('.list-table tbody');
+    const keyFn    = SORT_KEYS[col] || (r => '');
+    const parents  = [...tbody.querySelectorAll('.row-parent')];
+
+    parents.sort((a, b) => {
+        const ka = keyFn(a), kb = keyFn(b);
+        if (typeof ka === 'number') {
+            const nullA = ka === 0, nullB = kb === 0;
+            if (nullA && !nullB) return 1;
+            if (!nullA && nullB) return -1;
+            return dir === 'desc' ? kb - ka : ka - kb;
+        }
+        if (!ka && kb) return 1;
+        if (ka && !kb) return -1;
+        const cmp = ka < kb ? -1 : ka > kb ? 1 : 0;
+        return dir === 'desc' ? -cmp : cmp;
+    });
+
+    parents.forEach(parent => {
+        const pid      = parent.dataset.pid;
+        const children = [...tbody.querySelectorAll(`[data-child-of="${pid}"]`)];
+        tbody.appendChild(parent);
+        children.forEach(c => tbody.appendChild(c));
+    });
+}
+
+function updateSortHeaders(col, dir) {
+    document.querySelectorAll('.list-table thead th a').forEach(a => {
+        const id  = a.id.replace('sh-', '');
+        const icon = document.getElementById('si-' + id);
+        if (id === col) {
+            a.classList.add('active');
+            if (icon) {
+                icon.className = 'bi bi-chevron-' + (dir === 'asc' ? 'down' : 'up');
+                icon.style.opacity = '1';
+            }
+        } else {
+            a.classList.remove('active');
+            if (icon) {
+                icon.className = 'bi bi-chevron-expand';
+                icon.style.opacity = '0.4';
+            }
+        }
+    });
 }
 
 /* ── Filter logic ── */
 function applyFilters() {
-    const q        = document.getElementById('filter-q').value.toLowerCase().trim();
-    const depts    = [...document.querySelectorAll('.dept-check:checked')].map(x => x.value);
+    const q         = document.getElementById('filter-q').value.toLowerCase().trim();
+    const depts     = [...document.querySelectorAll('.dept-check:checked')].map(x => x.value);
     const assignees = [...document.querySelectorAll('.assignee-check:checked')].map(x => x.value);
 
     let visible = 0;
     document.querySelectorAll('.row-parent').forEach(row => {
-        const title    = row.dataset.title || '';
-        const dept     = row.dataset.dept  || '';
+        const title    = row.dataset.title    || '';
+        const dept     = row.dataset.dept     || '';
         const assignee = row.dataset.assignee || '';
         const pid      = row.dataset.pid;
 
-        const matchQ        = !q        || title.includes(q);
+        const matchQ        = !q             || title.includes(q);
         const matchDept     = depts.length    === 0 || depts.includes(dept);
         const matchAssignee = assignees.length === 0 || assignees.includes(assignee);
 
         const show = matchQ && matchDept && matchAssignee;
         row.classList.toggle('filtered-hidden', !show);
 
-        // hide children when parent filtered out
         document.querySelectorAll('[data-child-of="' + pid + '"]').forEach(r => {
             if (!show) r.classList.add('hidden');
         });
@@ -553,29 +622,20 @@ function toggleDropdown(key) {
     const dd  = document.getElementById(key + '-dropdown');
     const btn = document.getElementById(key + '-btn');
     const isOpen = dd.classList.contains('open');
-    // close all first
     document.querySelectorAll('.multi-select-dropdown').forEach(d => d.classList.remove('open'));
     document.querySelectorAll('.multi-select-btn').forEach(b => b.classList.remove('open'));
-    if (!isOpen) {
-        dd.classList.add('open');
-        btn.classList.add('open');
-    }
+    if (!isOpen) { dd.classList.add('open'); btn.classList.add('open'); }
 }
 
 function updateLabel(key) {
-    const checks  = [...document.querySelectorAll('.' + key + '-check:checked')];
-    const label   = document.getElementById(key + '-label');
+    const checks   = [...document.querySelectorAll('.' + key + '-check:checked')];
+    const label    = document.getElementById(key + '-label');
     const defaults = { dept: '全部部門', assignee: '全部人員' };
-    if (checks.length === 0) {
-        label.textContent = defaults[key];
-    } else if (checks.length === 1) {
-        label.textContent = checks[0].value;
-    } else {
-        label.textContent = checks[0].value + ' +' + (checks.length - 1);
-    }
+    if (checks.length === 0)      label.textContent = defaults[key];
+    else if (checks.length === 1) label.textContent = checks[0].value;
+    else                          label.textContent = checks[0].value + ' +' + (checks.length - 1);
 }
 
-// close dropdowns on outside click
 document.addEventListener('click', function(e) {
     if (!e.target.closest('.multi-select-wrap')) {
         document.querySelectorAll('.multi-select-dropdown').forEach(d => d.classList.remove('open'));
@@ -589,7 +649,7 @@ document.addEventListener('click', function(e) {
 /* ── Priority inline edit ── */
 function togglePriorityMenu(e, pid) {
     e.stopPropagation();
-    const menu = document.getElementById('pmenu-' + pid);
+    const menu   = document.getElementById('pmenu-' + pid);
     const isOpen = menu.classList.contains('open');
     document.querySelectorAll('.priority-menu').forEach(m => m.classList.remove('open'));
     if (!isOpen) menu.classList.add('open');
@@ -609,9 +669,11 @@ function setPriority(pid, priority) {
         const badge = document.getElementById('pbadge-' + pid);
         const dot   = document.getElementById('pdot-'   + pid);
         const label = document.getElementById('plabel-' + pid);
-        badge.className = 'priority-badge priority-' + priority;
-        dot.className   = 'priority-dot priority-dot-' + priority;
+        badge.className   = 'priority-badge priority-' + priority;
+        dot.className     = 'priority-dot priority-dot-' + priority;
         label.textContent = PRIORITY_LABELS[priority];
+        // update data attribute for sort
+        badge.closest('tr').dataset.priority = priority;
         document.getElementById('pmenu-' + pid).classList.remove('open');
     });
 }
