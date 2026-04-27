@@ -6,7 +6,7 @@
 # ==============================================================
 
 import os
-from datetime import datetime
+from datetime import datetime, date, timedelta
 from flask import (Flask, render_template, request, redirect,
                    url_for, flash, session, abort, g, jsonify)
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -756,6 +756,151 @@ def project_list():
         pulse_status=PULSE_STATUS,
         departments=departments,
         all_users=all_users,
+    )
+
+
+@app.route('/manager')
+@login_required
+def manager():
+    conn = get_db()
+    c = conn.cursor()
+
+    # Last week date range (previous Sun → Sat, inclusive)
+    today = date.today()
+    days_since_sunday = (today.weekday() + 1) % 7
+    this_week_start  = datetime.combine(today - timedelta(days=days_since_sunday), datetime.min.time())
+    last_week_start  = this_week_start - timedelta(days=7)
+
+    # 1. Summary counts
+    c.execute('''
+        SELECT
+            COUNT(*) FILTER (WHERE parent_id IS NULL) AS total,
+            COUNT(*) FILTER (WHERE parent_id IS NULL AND (
+                SELECT status FROM project_pulse WHERE project_id=p.id ORDER BY created_at DESC LIMIT 1
+            ) = 'process') AS in_progress,
+            COUNT(*) FILTER (WHERE parent_id IS NULL AND (
+                SELECT status FROM project_pulse WHERE project_id=p.id ORDER BY created_at DESC LIMIT 1
+            ) = 'done') AS done_count,
+            COUNT(DISTINCT assignee_id) FILTER (WHERE parent_id IS NULL AND assignee_id IS NOT NULL) AS assignee_count
+        FROM projects p
+    ''')
+    summary = c.fetchone()
+
+    # 2. Projects updated last week (distinct count)
+    c.execute('''
+        SELECT COUNT(DISTINCT project_id) AS cnt
+        FROM project_pulse
+        WHERE created_at >= %s AND created_at < %s
+    ''', (last_week_start, this_week_start))
+    last_week_updated = c.fetchone()['cnt']
+
+    # 3. Dept stats (stacked by status)
+    c.execute('''
+        SELECT
+            COALESCE(ua.department, '未指派') AS department,
+            COUNT(p.id) AS total,
+            COUNT(*) FILTER (WHERE (
+                SELECT status FROM project_pulse WHERE project_id=p.id ORDER BY created_at DESC LIMIT 1
+            ) = 'new') AS new_count,
+            COUNT(*) FILTER (WHERE (
+                SELECT status FROM project_pulse WHERE project_id=p.id ORDER BY created_at DESC LIMIT 1
+            ) = 'process') AS process_count,
+            COUNT(*) FILTER (WHERE (
+                SELECT status FROM project_pulse WHERE project_id=p.id ORDER BY created_at DESC LIMIT 1
+            ) = 'done') AS done_count
+        FROM projects p
+        LEFT JOIN users ua ON p.assignee_id = ua.id
+        WHERE p.parent_id IS NULL
+        GROUP BY COALESCE(ua.department, '未指派')
+        ORDER BY total DESC
+    ''')
+    dept_stats = c.fetchall()
+
+    # 4. Person stats
+    c.execute('''
+        SELECT
+            ua.name AS assignee_name,
+            COALESCE(ua.department, '') AS department,
+            COUNT(p.id) AS total,
+            COUNT(*) FILTER (WHERE (
+                SELECT status FROM project_pulse WHERE project_id=p.id ORDER BY created_at DESC LIMIT 1
+            ) = 'process') AS in_progress
+        FROM projects p
+        JOIN users ua ON p.assignee_id = ua.id
+        WHERE p.parent_id IS NULL
+        GROUP BY ua.name, ua.department
+        ORDER BY total DESC
+    ''')
+    person_stats = c.fetchall()
+
+    # 5. Last week logs (grouped display)
+    c.execute('''
+        SELECT pp.id, pp.project_id, pp.status, pp.message, pp.created_at,
+               u.name AS user_name, u.department AS user_dept,
+               p.title AS project_title
+        FROM project_pulse pp
+        JOIN users u ON pp.user_id = u.id
+        JOIN projects p ON pp.project_id = p.id
+        WHERE pp.created_at >= %s AND pp.created_at < %s
+        ORDER BY pp.created_at DESC
+    ''', (last_week_start, this_week_start))
+    last_week_logs_raw = c.fetchall()
+
+    # Group last week logs by project
+    from collections import OrderedDict
+    lw_by_proj = OrderedDict()
+    for log in last_week_logs_raw:
+        pid = log['project_id']
+        if pid not in lw_by_proj:
+            lw_by_proj[pid] = {'title': log['project_title'], 'project_id': pid, 'logs': []}
+        lw_by_proj[pid]['logs'].append(log)
+    last_week_projects = list(lw_by_proj.values())
+
+    # 6. All recent logs
+    c.execute('''
+        SELECT pp.id, pp.project_id, pp.status, pp.message, pp.created_at,
+               u.name AS user_name, u.department AS user_dept,
+               p.title AS project_title
+        FROM project_pulse pp
+        JOIN users u ON pp.user_id = u.id
+        JOIN projects p ON pp.project_id = p.id
+        ORDER BY pp.created_at DESC LIMIT 80
+    ''')
+    all_logs = c.fetchall()
+
+    release_db(conn)
+
+    # Chart data serialisation (plain Python dicts)
+    dept_chart = {
+        'labels':   [r['department'] for r in dept_stats],
+        'new':      [r['new_count']     for r in dept_stats],
+        'process':  [r['process_count'] for r in dept_stats],
+        'done':     [r['done_count']    for r in dept_stats],
+    }
+    person_chart = {
+        'labels': [r['assignee_name'] for r in person_stats],
+        'totals': [r['total']         for r in person_stats],
+    }
+    status_chart = {
+        'new':     (summary['total'] or 0) - (summary['in_progress'] or 0) - (summary['done_count'] or 0),
+        'process': summary['in_progress'] or 0,
+        'done':    summary['done_count']  or 0,
+    }
+
+    return render_template(
+        'manager.html',
+        summary=summary,
+        last_week_updated=last_week_updated,
+        dept_stats=dept_stats,
+        person_stats=person_stats,
+        last_week_projects=last_week_projects,
+        all_logs=all_logs,
+        dept_chart=dept_chart,
+        person_chart=person_chart,
+        status_chart=status_chart,
+        pulse_status=PULSE_STATUS,
+        last_week_start=last_week_start.date(),
+        last_week_end=(this_week_start - timedelta(days=1)).date(),
     )
 
 

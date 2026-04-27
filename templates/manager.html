@@ -1,0 +1,524 @@
+{% extends 'base.html' %}
+{% block title %}主管儀表板 — Project Hub{% endblock %}
+{% block header_title %}主管儀表板{% endblock %}
+
+{% block content %}
+
+{% set dept_colors = {
+    '會計':     '#1d4ed8',
+    '財務':     '#15803d',
+    '投資人':   '#7e22ce',
+    '財務規劃': '#0f766e',
+    '法務':     '#c2410c',
+    '自動化':   '#3730a3',
+    '財務長':   '#be123c',
+    '未指派':   '#6b7280',
+} %}
+{% set dept_bg = {
+    '會計':     '#dbeafe',
+    '財務':     '#dcfce7',
+    '投資人':   '#f3e8ff',
+    '財務規劃': '#ccfbf1',
+    '法務':     '#ffedd5',
+    '自動化':   '#e0e7ff',
+    '財務長':   '#ffe4e6',
+    '未指派':   '#f3f4f6',
+} %}
+
+<style>
+    .stat-card {
+        background: #fff;
+        border-radius: 12px;
+        padding: 20px 22px;
+        border: 1px solid var(--blue-pale);
+        box-shadow: 0 2px 8px rgba(26,79,122,0.06);
+        display: flex; flex-direction: column; gap: 6px;
+    }
+    .stat-value {
+        font-size: 32px; font-weight: 800;
+        letter-spacing: -1.5px; line-height: 1;
+        color: var(--blue-deep);
+    }
+    .stat-label { font-size: 11.5px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
+    .stat-sub   { font-size: 11px; color: var(--text-light); }
+
+    .chart-card {
+        background: #fff;
+        border-radius: 12px;
+        border: 1px solid var(--blue-pale);
+        box-shadow: 0 2px 8px rgba(26,79,122,0.06);
+        overflow: hidden;
+    }
+    .chart-card-header {
+        padding: 14px 18px 10px;
+        border-bottom: 1px solid var(--blue-pale);
+        font-size: 12px; font-weight: 700;
+        color: var(--blue-deep); text-transform: uppercase; letter-spacing: 0.06em;
+    }
+    .chart-card-body { padding: 16px 18px; }
+
+    .log-card {
+        background: #fff;
+        border-radius: 12px;
+        border: 1px solid var(--blue-pale);
+        box-shadow: 0 2px 8px rgba(26,79,122,0.06);
+        overflow: hidden;
+        display: flex; flex-direction: column;
+        height: 540px;
+    }
+    .log-card-header {
+        padding: 14px 18px 10px;
+        border-bottom: 1px solid var(--blue-pale);
+        font-size: 12px; font-weight: 700;
+        color: var(--blue-deep); text-transform: uppercase; letter-spacing: 0.06em;
+        flex-shrink: 0;
+        display: flex; align-items: center; justify-content: space-between;
+    }
+    .log-scroll { overflow-y: auto; flex: 1; padding: 12px 16px; }
+
+    .log-entry {
+        display: flex; gap: 10px;
+        padding: 9px 0;
+        border-bottom: 1px solid rgba(212,234,247,0.5);
+    }
+    .log-entry:last-child { border-bottom: none; }
+    .log-dot {
+        width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; margin-top: 5px;
+    }
+    .log-body { flex: 1; min-width: 0; }
+    .log-project { font-size: 11.5px; font-weight: 700; color: var(--blue-deep); margin-bottom: 1px;
+                   white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .log-meta   { font-size: 10.5px; color: var(--text-muted); margin-bottom: 3px; }
+    .log-msg    { font-size: 12px; color: var(--text-mid);
+                  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    .status-pill {
+        display: inline-flex; align-items: center; gap: 4px;
+        padding: 1px 7px; border-radius: 20px;
+        font-size: 10px; font-weight: 700;
+    }
+
+    .week-proj-block {
+        border: 1px solid var(--blue-pale);
+        border-radius: 8px; margin-bottom: 10px; overflow: hidden;
+    }
+    .week-proj-title {
+        padding: 8px 12px;
+        background: var(--snow);
+        font-size: 12px; font-weight: 700;
+        color: var(--blue-deep);
+        border-bottom: 1px solid var(--blue-pale);
+        display: flex; align-items: center; gap: 6px;
+    }
+    .week-proj-logs { padding: 0 12px; }
+    .week-log-row {
+        padding: 7px 0;
+        border-bottom: 1px solid rgba(212,234,247,0.4);
+        font-size: 11.5px; display: flex; gap: 8px; align-items: flex-start;
+    }
+    .week-log-row:last-child { border-bottom: none; }
+
+    .dept-pill {
+        display: inline-flex; align-items: center;
+        padding: 1px 7px; border-radius: 20px;
+        font-size: 10px; font-weight: 700; white-space: nowrap;
+    }
+</style>
+
+<!-- ══ Stat Cards ══════════════════════════════════════════════ -->
+<div style="display:grid; grid-template-columns: repeat(5, 1fr); gap:14px; margin-bottom:20px;">
+
+    <div class="stat-card">
+        <div class="stat-label">總專案數</div>
+        <div class="stat-value" style="color:var(--blue-deep);">{{ summary.total or 0 }}</div>
+        <div class="stat-sub">主專案（不含子專案）</div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-label">進行中</div>
+        <div class="stat-value" style="color:#d97706;">{{ summary.in_progress or 0 }}</div>
+        <div class="stat-sub">
+            {{ '%.0f'|format(((summary.in_progress or 0) / (summary.total or 1)) * 100) }}% 佔比
+        </div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-label">已完成</div>
+        <div class="stat-value" style="color:#15803d;">{{ summary.done_count or 0 }}</div>
+        <div class="stat-sub">
+            {{ '%.0f'|format(((summary.done_count or 0) / (summary.total or 1)) * 100) }}% 完成率
+        </div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-label">負責人數</div>
+        <div class="stat-value" style="color:#7e22ce;">{{ summary.assignee_count or 0 }}</div>
+        <div class="stat-sub">有指派專案的人員</div>
+    </div>
+
+    <div class="stat-card">
+        <div class="stat-label">上週有更新</div>
+        <div class="stat-value" style="color:#0f766e;">{{ last_week_updated }}</div>
+        <div class="stat-sub">{{ last_week_start }} ~ {{ last_week_end }}</div>
+    </div>
+
+</div>
+
+<!-- ══ Charts ═════════════════════════════════════════════════ -->
+<div style="display:grid; grid-template-columns: 5fr 3fr 4fr; gap:14px; margin-bottom:20px;">
+
+    <!-- Dept stacked bar -->
+    <div class="chart-card">
+        <div class="chart-card-header">各部門專案狀態分佈</div>
+        <div class="chart-card-body" style="height:280px; position:relative;">
+            <canvas id="deptChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Status donut -->
+    <div class="chart-card">
+        <div class="chart-card-header">整體狀態</div>
+        <div class="chart-card-body" style="height:280px; position:relative; display:flex; flex-direction:column; align-items:center; justify-content:center;">
+            <canvas id="statusChart" style="max-height:200px;"></canvas>
+            <div style="display:flex; gap:14px; margin-top:10px; flex-wrap:wrap; justify-content:center;">
+                <span style="font-size:11px; color:#6b7280; display:flex; align-items:center; gap:4px;">
+                    <span style="width:8px;height:8px;border-radius:50%;background:#6b7280;flex-shrink:0;"></span> NEW
+                </span>
+                <span style="font-size:11px; color:#d97706; display:flex; align-items:center; gap:4px;">
+                    <span style="width:8px;height:8px;border-radius:50%;background:#f59e0b;flex-shrink:0;"></span> 進行中
+                </span>
+                <span style="font-size:11px; color:#15803d; display:flex; align-items:center; gap:4px;">
+                    <span style="width:8px;height:8px;border-radius:50%;background:#22c55e;flex-shrink:0;"></span> 完成
+                </span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Person horizontal bar -->
+    <div class="chart-card">
+        <div class="chart-card-header">人員負責專案數</div>
+        <div class="chart-card-body" style="height:280px; overflow-y:auto; position:relative;">
+            <canvas id="personChart"></canvas>
+        </div>
+    </div>
+
+</div>
+
+<!-- ══ Dept table + person table ══════════════════════════════ -->
+<div style="display:grid; grid-template-columns: 1fr 1fr; gap:14px; margin-bottom:20px;">
+
+    <!-- Dept breakdown table -->
+    <div class="chart-card">
+        <div class="chart-card-header">部門專案明細</div>
+        <div style="overflow-x:auto;">
+        <table style="width:100%; border-collapse:collapse; font-size:12.5px;">
+            <thead>
+                <tr style="background:var(--snow);">
+                    <th style="padding:8px 16px; text-align:left; font-size:10.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em; border-bottom:1px solid var(--blue-pale);">部門</th>
+                    <th style="padding:8px 16px; text-align:center; font-size:10.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em; border-bottom:1px solid var(--blue-pale);">總計</th>
+                    <th style="padding:8px 16px; text-align:center; font-size:10.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em; border-bottom:1px solid var(--blue-pale);">NEW</th>
+                    <th style="padding:8px 16px; text-align:center; font-size:10.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em; border-bottom:1px solid var(--blue-pale);">進行中</th>
+                    <th style="padding:8px 16px; text-align:center; font-size:10.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em; border-bottom:1px solid var(--blue-pale);">完成</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for d in dept_stats %}
+            <tr style="border-bottom:1px solid rgba(212,234,247,0.5);">
+                <td style="padding:9px 16px;">
+                    <span class="dept-pill" style="background:{{ dept_bg.get(d.department, '#f3f4f6') }}; color:{{ dept_colors.get(d.department, '#6b7280') }};">
+                        {{ d.department }}
+                    </span>
+                </td>
+                <td style="padding:9px 16px; text-align:center; font-weight:700; color:var(--blue-deep);">{{ d.total }}</td>
+                <td style="padding:9px 16px; text-align:center; color:#6b7280;">{{ d.new_count }}</td>
+                <td style="padding:9px 16px; text-align:center; color:#d97706; font-weight:600;">{{ d.process_count }}</td>
+                <td style="padding:9px 16px; text-align:center; color:#15803d; font-weight:600;">{{ d.done_count }}</td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+
+    <!-- Person breakdown table -->
+    <div class="chart-card">
+        <div class="chart-card-header">人員負責明細</div>
+        <div style="overflow-x:auto;">
+        <table style="width:100%; border-collapse:collapse; font-size:12.5px;">
+            <thead>
+                <tr style="background:var(--snow);">
+                    <th style="padding:8px 16px; text-align:left; font-size:10.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em; border-bottom:1px solid var(--blue-pale);">人員</th>
+                    <th style="padding:8px 16px; text-align:left; font-size:10.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em; border-bottom:1px solid var(--blue-pale);">部門</th>
+                    <th style="padding:8px 16px; text-align:center; font-size:10.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em; border-bottom:1px solid var(--blue-pale);">專案數</th>
+                    <th style="padding:8px 16px; text-align:center; font-size:10.5px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em; border-bottom:1px solid var(--blue-pale);">進行中</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for p in person_stats %}
+            <tr style="border-bottom:1px solid rgba(212,234,247,0.5);">
+                <td style="padding:9px 16px; font-weight:600; color:var(--blue-deep);">{{ p.assignee_name }}</td>
+                <td style="padding:9px 16px;">
+                    <span class="dept-pill" style="background:{{ dept_bg.get(p.department, '#f3f4f6') }}; color:{{ dept_colors.get(p.department, '#6b7280') }};">
+                        {{ p.department or '—' }}
+                    </span>
+                </td>
+                <td style="padding:9px 16px; text-align:center; font-weight:700; color:var(--blue-deep);">{{ p.total }}</td>
+                <td style="padding:9px 16px; text-align:center;">
+                    {% if p.in_progress > 0 %}
+                    <span style="color:#d97706; font-weight:600;">{{ p.in_progress }}</span>
+                    {% else %}
+                    <span style="color:var(--text-light);">—</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+        </div>
+    </div>
+
+</div>
+
+<!-- ══ Logs ════════════════════════════════════════════════════ -->
+<div style="display:grid; grid-template-columns: 1fr 1fr; gap:14px;">
+
+    <!-- Last week updates -->
+    <div class="log-card">
+        <div class="log-card-header">
+            <span><i class="bi bi-calendar-week me-1" style="font-size:11px;"></i>上週更新（{{ last_week_start }} – {{ last_week_end }}）</span>
+            <span style="font-size:11px; font-weight:500; color:var(--text-muted);">{{ last_week_projects | length }} 個專案</span>
+        </div>
+        <div class="log-scroll">
+            {% if last_week_projects %}
+                {% for proj in last_week_projects %}
+                <div class="week-proj-block">
+                    <div class="week-proj-title">
+                        <i class="bi bi-folder2" style="font-size:10px; color:var(--text-muted);"></i>
+                        <a href="{{ url_for('project_detail', project_id=proj.project_id) }}"
+                           style="color:var(--blue-deep); text-decoration:none;"
+                           onclick="event.stopPropagation();">
+                            {{ proj.title }}
+                        </a>
+                        <span style="font-size:10px; color:var(--text-light); margin-left:auto;">{{ proj.logs | length }} 筆</span>
+                    </div>
+                    <div class="week-proj-logs">
+                        {% for log in proj.logs %}
+                        {% set ps = pulse_status.get(log.status) %}
+                        <div class="week-log-row">
+                            {% if ps %}
+                            <span class="status-pill" style="background:{{ ps.color }}18; color:{{ ps.color }}; flex-shrink:0; margin-top:1px;">
+                                <span style="width:6px;height:6px;border-radius:50%;background:{{ ps.color }};"></span>
+                                {{ log.status | upper }}
+                            </span>
+                            {% endif %}
+                            <div style="flex:1; min-width:0;">
+                                <div style="font-size:11px; color:var(--text-muted); margin-bottom:2px;">
+                                    {{ log.user_name }}
+                                    <span class="dept-pill" style="background:{{ dept_bg.get(log.user_dept, '#f3f4f6') }}; color:{{ dept_colors.get(log.user_dept, '#6b7280') }};">
+                                        {{ log.user_dept }}
+                                    </span>
+                                    · {{ log.created_at | dtshort }}
+                                </div>
+                                <div style="font-size:12px; color:var(--text-dark); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                                    {{ log.message }}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div style="padding:48px 0; text-align:center; color:var(--text-muted);">
+                    <i class="bi bi-calendar-x" style="font-size:28px; opacity:0.3; display:block; margin-bottom:8px;"></i>
+                    <div style="font-size:13px; font-weight:600;">上週無任何更新</div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- All logs -->
+    <div class="log-card">
+        <div class="log-card-header">
+            <span><i class="bi bi-clock-history me-1" style="font-size:11px;"></i>全部動態 Log</span>
+            <span style="font-size:11px; font-weight:500; color:var(--text-muted);">最近 {{ all_logs | length }} 筆</span>
+        </div>
+        <div class="log-scroll">
+            {% if all_logs %}
+                {% for log in all_logs %}
+                {% set ps = pulse_status.get(log.status) %}
+                <div class="log-entry">
+                    <span class="log-dot" style="background:{{ ps.color if ps else '#9ca3af' }};"></span>
+                    <div class="log-body">
+                        <div style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+                            <a href="{{ url_for('project_detail', project_id=log.project_id) }}"
+                               class="log-project"
+                               style="color:var(--blue-deep); text-decoration:none;">
+                                {{ log.project_title }}
+                            </a>
+                            {% if ps %}
+                            <span class="status-pill" style="background:{{ ps.color }}18; color:{{ ps.color }};">
+                                <span style="width:5px;height:5px;border-radius:50%;background:{{ ps.color }};"></span>
+                                {{ log.status | upper }}
+                            </span>
+                            {% endif %}
+                        </div>
+                        <div class="log-meta">
+                            {{ log.user_name }}
+                            <span class="dept-pill" style="background:{{ dept_bg.get(log.user_dept, '#f3f4f6') }}; color:{{ dept_colors.get(log.user_dept, '#6b7280') }}; font-size:9px;">
+                                {{ log.user_dept }}
+                            </span>
+                            · {{ log.created_at | dtshort }}
+                        </div>
+                        <div class="log-msg">{{ log.message }}</div>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div style="padding:48px 0; text-align:center; color:var(--text-muted);">
+                    <i class="bi bi-inbox" style="font-size:28px; opacity:0.3; display:block; margin-bottom:8px;"></i>
+                    <div style="font-size:13px; font-weight:600;">尚無任何動態</div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+Chart.defaults.font.family = "'Inter', 'Microsoft JhengHei', sans-serif";
+Chart.defaults.color = '#6A8EA0';
+
+/* ── Dept stacked bar ── */
+(function() {
+    const data = {{ dept_chart | tojson }};
+    const ctx  = document.getElementById('deptChart');
+    if (!ctx || !data.labels.length) return;
+
+    const DEPT_COLORS = {
+        '會計':     '#1d4ed8', '財務':     '#15803d',
+        '投資人':   '#7e22ce', '財務規劃': '#0f766e',
+        '法務':     '#c2410c', '自動化':   '#3730a3',
+        '財務長':   '#be123c', '未指派':   '#6b7280',
+    };
+
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: data.labels,
+            datasets: [
+                {
+                    label: 'NEW',
+                    data: data.new,
+                    backgroundColor: 'rgba(107,114,128,0.65)',
+                    borderRadius: 0,
+                },
+                {
+                    label: '進行中',
+                    data: data.process,
+                    backgroundColor: 'rgba(245,158,11,0.80)',
+                    borderRadius: 0,
+                },
+                {
+                    label: '完成',
+                    data: data.done,
+                    backgroundColor: 'rgba(34,197,94,0.80)',
+                    borderRadius: 4,
+                },
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } },
+                tooltip: { mode: 'index', intersect: false },
+            },
+            scales: {
+                x: { stacked: true, grid: { display: false }, ticks: { font: { size: 11 } } },
+                y: { stacked: true, beginAtZero: true, ticks: { stepSize: 1, font: { size: 11 } },
+                     grid: { color: 'rgba(212,234,247,0.6)' } },
+            }
+        }
+    });
+})();
+
+/* ── Status donut ── */
+(function() {
+    const data = {{ status_chart | tojson }};
+    const ctx  = document.getElementById('statusChart');
+    if (!ctx) return;
+    const total = data.new + data.process + data.done;
+    if (total === 0) return;
+
+    new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: ['NEW', '進行中', '完成'],
+            datasets: [{
+                data: [data.new, data.process, data.done],
+                backgroundColor: ['#9ca3af', '#f59e0b', '#22c55e'],
+                borderWidth: 2,
+                borderColor: '#fff',
+                hoverOffset: 4,
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '68%',
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: ctx => ` ${ctx.label}: ${ctx.raw} (${Math.round(ctx.raw/total*100)}%)`
+                    }
+                }
+            }
+        }
+    });
+})();
+
+/* ── Person horizontal bar ── */
+(function() {
+    const data = {{ person_chart | tojson }};
+    const ctx  = document.getElementById('personChart');
+    if (!ctx || !data.labels.length) return;
+
+    const barH = Math.max(28, Math.min(44, 240 / data.labels.length));
+    ctx.parentElement.style.height = Math.max(240, data.labels.length * (barH + 6) + 40) + 'px';
+
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: data.labels,
+            datasets: [{
+                label: '專案數',
+                data: data.totals,
+                backgroundColor: 'rgba(43,123,185,0.75)',
+                borderRadius: 4,
+                barThickness: barH,
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false },
+                tooltip: { callbacks: { label: c => ` ${c.raw} 個專案` } }
+            },
+            scales: {
+                x: { beginAtZero: true, ticks: { stepSize: 1, font: { size: 11 } },
+                     grid: { color: 'rgba(212,234,247,0.6)' } },
+                y: { grid: { display: false }, ticks: { font: { size: 11 } } },
+            }
+        }
+    });
+})();
+</script>
+{% endblock %}
