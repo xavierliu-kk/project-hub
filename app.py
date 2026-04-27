@@ -199,6 +199,63 @@ def init_db():
 
     c.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS is_manager BOOLEAN DEFAULT FALSE')
 
+    # One-time migration: backfill existing pulse / comment / sub-project records
+    c.execute('SELECT COUNT(*) FROM activity_log')
+    if c.fetchone()['count'] == 0:
+        # Backfill pulse logs
+        _status_names = {'new': '未開始', 'process': '進行中', 'done': '已完成'}
+        c.execute('''
+            SELECT pp.project_id, pp.user_id, pp.status, pp.message, pp.created_at,
+                   u.name AS user_name
+            FROM project_pulse pp
+            JOIN users u ON pp.user_id = u.id
+            ORDER BY pp.created_at
+        ''')
+        for row in c.fetchall():
+            _preview = row['message'][:60] + ('…' if len(row['message']) > 60 else '')
+            _sname   = _status_names.get(row['status'], row['status'])
+            c.execute(
+                '''INSERT INTO activity_log (project_id, user_id, action_type, action_label, created_at)
+                   VALUES (%s,%s,%s,%s,%s)''',
+                (row['project_id'], row['user_id'], 'pulse',
+                 f'{row["user_name"]} 更新進度 → {_sname}：{_preview}',
+                 row['created_at'])
+            )
+        # Backfill comments
+        c.execute('''
+            SELECT cm.project_id, cm.user_id, cm.content, cm.created_at,
+                   u.name AS user_name
+            FROM comments cm
+            JOIN users u ON cm.user_id = u.id
+            ORDER BY cm.created_at
+        ''')
+        for row in c.fetchall():
+            _preview = row['content'][:60] + ('…' if len(row['content']) > 60 else '')
+            c.execute(
+                '''INSERT INTO activity_log (project_id, user_id, action_type, action_label, created_at)
+                   VALUES (%s,%s,%s,%s,%s)''',
+                (row['project_id'], row['user_id'], 'comment',
+                 f'{row["user_name"]} 新增留言：{_preview}',
+                 row['created_at'])
+            )
+        # Backfill sub-project creations (log to parent project)
+        c.execute('''
+            SELECT p.id, p.parent_id, p.title, p.creator_id, p.created_at,
+                   u.name AS user_name
+            FROM projects p
+            JOIN users u ON p.creator_id = u.id
+            WHERE p.parent_id IS NOT NULL
+            ORDER BY p.created_at
+        ''')
+        for row in c.fetchall():
+            c.execute(
+                '''INSERT INTO activity_log (project_id, user_id, action_type, action_label, created_at)
+                   VALUES (%s,%s,%s,%s,%s)''',
+                (row['parent_id'], row['creator_id'], 'sub_project',
+                 f'{row["user_name"]} 新增了子專案「{row["title"]}」',
+                 row['created_at'])
+            )
+
     conn.commit()
     release_db(conn)
 
