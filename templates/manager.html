@@ -296,6 +296,63 @@
     </div>
 </div>
 
+<!-- ══ Weekly Reports ════════════════════════════════════════ -->
+<div class="panel" style="margin-bottom:18px;">
+    <div class="panel-hd">
+        <span>
+            <i class="bi bi-journal-text me-1" style="font-size:11px;"></i>
+            <span id="reportTitle">週報總覽</span>
+        </span>
+        <span id="reportCount" style="font-size:11px;font-weight:500;color:var(--text-muted);">{{ mgr_reports_all|length }} 份</span>
+    </div>
+
+    <!-- ALL reports -->
+    <div id="reportPaneAll" style="max-height:320px; overflow-y:auto; padding:6px 14px;">
+        {% for r in mgr_reports_all %}
+        <a href="{{ url_for('report_detail', report_id=r.id) }}"
+           class="log-row" style="text-decoration:none; color:inherit;">
+            <span class="dept-pill"
+                  style="background:{{ dept_bg.get(r.department,'#f3f4f6') }};
+                         color:{{ dept_colors.get(r.department,'#6b7280') }};
+                         flex-shrink:0;">
+                {{ (r.department or '未指派')[:2] }}
+            </span>
+            <span style="font-weight:600;font-size:12px;min-width:70px;flex-shrink:0;color:var(--blue-deep);">{{ r.user_name }}</span>
+            <span style="font-size:11px;color:var(--text-muted);min-width:82px;flex-shrink:0;">{{ r.report_date | datefmt }}</span>
+            <span class="log-text">{{ r.content | replace('\n',' ') }}</span>
+        </a>
+        {% else %}
+        <div style="padding:30px 0;text-align:center;color:var(--text-muted);">
+            <i class="bi bi-journal" style="font-size:22px;opacity:0.3;display:block;margin-bottom:6px;"></i>
+            尚無週報紀錄
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- WEEK reports -->
+    <div id="reportPaneWeek" style="display:none; max-height:320px; overflow-y:auto; padding:6px 14px;">
+        {% for r in mgr_reports_week %}
+        <a href="{{ url_for('report_detail', report_id=r.id) }}"
+           class="log-row" style="text-decoration:none; color:inherit;">
+            <span class="dept-pill"
+                  style="background:{{ dept_bg.get(r.department,'#f3f4f6') }};
+                         color:{{ dept_colors.get(r.department,'#6b7280') }};
+                         flex-shrink:0;">
+                {{ (r.department or '未指派')[:2] }}
+            </span>
+            <span style="font-weight:600;font-size:12px;min-width:70px;flex-shrink:0;color:var(--blue-deep);">{{ r.user_name }}</span>
+            <span style="font-size:11px;color:var(--text-muted);min-width:82px;flex-shrink:0;">{{ r.report_date | datefmt }}</span>
+            <span class="log-text">{{ r.content | replace('\n',' ') }}</span>
+        </a>
+        {% else %}
+        <div style="padding:30px 0;text-align:center;color:var(--text-muted);">
+            <i class="bi bi-calendar-x" style="font-size:22px;opacity:0.3;display:block;margin-bottom:6px;"></i>
+            上週（{{ last_week_start }} ~ {{ last_week_end }}）無週報提交
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
 <!-- ══ Activity Log ══════════════════════════════════════════ -->
 <div class="panel">
     <div class="panel-hd">
@@ -503,6 +560,16 @@ function toggleMode() {
     document.getElementById('deptTableWeek').style.display   = weekMode ? 'block' : 'none';
     document.getElementById('personTableAll').style.display  = weekMode ? 'none'  : 'block';
     document.getElementById('personTableWeek').style.display = weekMode ? 'block' : 'none';
+
+    // Reports
+    document.getElementById('reportPaneAll').style.display  = weekMode ? 'none'  : 'block';
+    document.getElementById('reportPaneWeek').style.display = weekMode ? 'block' : 'none';
+    document.getElementById('reportTitle').textContent = weekMode
+        ? '上週週報（{{ last_week_start }} ~ {{ last_week_end }}）'
+        : '週報總覽';
+    document.getElementById('reportCount').textContent = weekMode
+        ? '{{ mgr_reports_week|length }} 份'
+        : '{{ mgr_reports_all|length }} 份';
 
     // Logs
     document.getElementById('logPaneAll').style.display  = weekMode ? 'none'  : 'block';

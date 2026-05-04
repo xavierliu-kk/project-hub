@@ -383,8 +383,13 @@
 
         {% if session.get('user_id') %}
         <a href="{{ url_for('report_list') }}"
-           class="sidebar-item {% if request.endpoint in ['report_list','report_new','report_detail','report_edit'] %}active{% endif %}">
+           class="sidebar-item {% if request.endpoint in ['report_list','report_detail','report_edit'] %}active{% endif %}">
             <i class="bi bi-journal-text"></i> 週報
+        </a>
+        <a href="{{ url_for('report_new') }}"
+           class="sidebar-item {% if request.endpoint == 'report_new' %}active{% endif %}"
+           style="padding-left:30px; font-size:11.5px;">
+            <i class="bi bi-plus-circle" style="font-size:11px;"></i> 新增週報
         </a>
         {% endif %}
 

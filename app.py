@@ -1189,6 +1189,51 @@ def manager():
                   (last_week_start, this_week_start))
         last_week_logs = c.fetchall()
 
+    # 9. Weekly reports — all recent + last week
+    _lw_start = last_week_start.date()
+    _lw_end   = (this_week_start - timedelta(days=1)).date()
+    if managed_dept:
+        c.execute('''
+            SELECT wr.id, wr.report_date, wr.content, wr.created_at, wr.user_id,
+                   u.name AS user_name, u.department
+            FROM weekly_reports wr
+            JOIN users u ON wr.user_id = u.id
+            WHERE u.department = %s
+            ORDER BY wr.report_date DESC
+            LIMIT 50
+        ''', (managed_dept,))
+    else:
+        c.execute('''
+            SELECT wr.id, wr.report_date, wr.content, wr.created_at, wr.user_id,
+                   u.name AS user_name, u.department
+            FROM weekly_reports wr
+            JOIN users u ON wr.user_id = u.id
+            ORDER BY wr.report_date DESC
+            LIMIT 50
+        ''')
+    mgr_reports_all = c.fetchall()
+
+    if managed_dept:
+        c.execute('''
+            SELECT wr.id, wr.report_date, wr.content, wr.created_at, wr.user_id,
+                   u.name AS user_name, u.department
+            FROM weekly_reports wr
+            JOIN users u ON wr.user_id = u.id
+            WHERE u.department = %s
+              AND wr.report_date >= %s AND wr.report_date <= %s
+            ORDER BY wr.report_date DESC
+        ''', (managed_dept, _lw_start, _lw_end))
+    else:
+        c.execute('''
+            SELECT wr.id, wr.report_date, wr.content, wr.created_at, wr.user_id,
+                   u.name AS user_name, u.department
+            FROM weekly_reports wr
+            JOIN users u ON wr.user_id = u.id
+            WHERE wr.report_date >= %s AND wr.report_date <= %s
+            ORDER BY wr.report_date DESC
+        ''', (_lw_start, _lw_end))
+    mgr_reports_week = c.fetchall()
+
     release_db(conn)
 
     # All-mode chart data
@@ -1247,6 +1292,8 @@ def manager():
         last_week_start=last_week_start.date(),
         last_week_end=(this_week_start - timedelta(days=1)).date(),
         managed_dept=managed_dept,
+        mgr_reports_all=mgr_reports_all,
+        mgr_reports_week=mgr_reports_week,
     )
 
 
