@@ -112,7 +112,9 @@
     <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
         <!-- Week date picker -->
         <div style="display:flex; align-items:center; gap:6px; background:#fff;
-                    border:1.5px solid var(--blue-pale); border-radius:8px; padding:6px 12px;">
+                    border:1.5px solid {% if week_active %}var(--blue-mid){% else %}var(--blue-pale){% endif %};
+                    border-radius:8px; padding:6px 12px;
+                    {% if week_active %}box-shadow:0 0 0 3px rgba(43,123,185,0.12);{% endif %}">
             <i class="bi bi-calendar3" style="font-size:13px; color:var(--blue-mid);"></i>
             <span style="font-size:11px; color:var(--text-muted); white-space:nowrap;">選擇週次</span>
             <input type="date" id="weekPicker"
@@ -733,6 +735,10 @@ function toggleMode() {
 }
 
 /* ── Init ── */
+{% if week_active %}
+toggleMode();   // auto-activate week mode when ?week= param present
+{% else %}
 renderAll();
+{% endif %}
 </script>
 {% endblock %}

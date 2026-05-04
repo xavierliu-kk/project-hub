@@ -1319,6 +1319,7 @@ def manager():
         last_week_start=_sel_mon,
         last_week_end=(_sel_mon + timedelta(days=6)),
         week_param=week_param or _sel_mon.isoformat(),
+        week_active=bool(week_param),
         managed_dept=managed_dept,
         mgr_reports_all=mgr_reports_all,
         mgr_reports_week=mgr_reports_week,
