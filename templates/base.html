@@ -393,10 +393,6 @@
            class="sidebar-item {% if request.endpoint == 'manager' %}active{% endif %}">
             <i class="bi bi-graph-up"></i> 主管儀表板
         </a>
-        <a href="{{ url_for('report_calendar') }}"
-           class="sidebar-item {% if request.endpoint == 'report_calendar' %}active{% endif %}">
-            <i class="bi bi-calendar3"></i> 週報日曆
-        </a>
         {% endif %}
 
         <div class="sidebar-sect" style="margin-top:10px;">Account</div>

@@ -1800,12 +1800,12 @@ def report_calendar():
     for r in reports:
         by_date.setdefault(r['report_date'], []).append(r)
 
-    # Build weeks starting from Monday
+    # Build weeks Mon–Fri only
     weeks = []
     cur = first_day - timedelta(days=first_day.weekday())
     while cur <= last_day:
         week = []
-        for i in range(7):
+        for i in range(5):  # Mon=0 … Fri=4
             d = cur + timedelta(days=i)
             week.append({
                 'date':     d,
