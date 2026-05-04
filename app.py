@@ -581,8 +581,14 @@ def project_new():
 
         c.execute(
             '''INSERT INTO projects (title, description, creator_id, assignee_id, parent_id, launch_date, benefit, priority)
-               VALUES (%s, %s, %s, %s, NULL, %s, %s, %s)''',
+               VALUES (%s, %s, %s, %s, NULL, %s, %s, %s) RETURNING id''',
             (title, description, session['user_id'], assignee_id, launch_date, benefit, priority)
+        )
+        new_id = c.fetchone()['id']
+        c.execute(
+            'INSERT INTO activity_log (project_id, user_id, action_type, action_label) VALUES (%s,%s,%s,%s)',
+            (new_id, session['user_id'], 'edit',
+             f'{session["user_name"]} 建立了專案「{title}」')
         )
         conn.commit()
         release_db(conn)
