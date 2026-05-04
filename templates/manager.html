@@ -297,8 +297,8 @@
 </div>
 
 <!-- ══ Weekly Reports ════════════════════════════════════════ -->
-<div class="panel" style="margin-bottom:18px;">
-    <div class="panel-hd">
+<div class="panel" style="margin-bottom:18px; height:420px; display:flex; flex-direction:column; overflow:hidden;">
+    <div class="panel-hd" style="flex-shrink:0;">
         <span>
             <i class="bi bi-journal-text me-1" style="font-size:11px;"></i>
             <span id="reportTitle">週報總覽</span>
@@ -306,52 +306,176 @@
         <span id="reportCount" style="font-size:11px;font-weight:500;color:var(--text-muted);">{{ mgr_reports_all|length }} 份</span>
     </div>
 
-    <!-- ALL reports -->
-    <div id="reportPaneAll" style="max-height:320px; overflow-y:auto; padding:6px 14px;">
-        {% for r in mgr_reports_all %}
-        <a href="{{ url_for('report_detail', report_id=r.id) }}"
-           class="log-row" style="text-decoration:none; color:inherit;">
-            <span class="dept-pill"
-                  style="background:{{ dept_bg.get(r.department,'#f3f4f6') }};
-                         color:{{ dept_colors.get(r.department,'#6b7280') }};
-                         flex-shrink:0;">
-                {{ (r.department or '未指派')[:2] }}
-            </span>
-            <span style="font-weight:600;font-size:12px;min-width:70px;flex-shrink:0;color:var(--blue-deep);">{{ r.user_name }}</span>
-            <span style="font-size:11px;color:var(--text-muted);min-width:82px;flex-shrink:0;">{{ r.report_date | datefmt }}</span>
-            <span class="log-text">{{ r.content | replace('\n',' ') }}</span>
-        </a>
-        {% else %}
-        <div style="padding:30px 0;text-align:center;color:var(--text-muted);">
-            <i class="bi bi-journal" style="font-size:22px;opacity:0.3;display:block;margin-bottom:6px;"></i>
-            尚無週報紀錄
-        </div>
-        {% endfor %}
-    </div>
+    <!-- Split body -->
+    <div style="display:flex; flex:1; overflow:hidden;">
 
-    <!-- WEEK reports -->
-    <div id="reportPaneWeek" style="display:none; max-height:320px; overflow-y:auto; padding:6px 14px;">
-        {% for r in mgr_reports_week %}
-        <a href="{{ url_for('report_detail', report_id=r.id) }}"
-           class="log-row" style="text-decoration:none; color:inherit;">
-            <span class="dept-pill"
-                  style="background:{{ dept_bg.get(r.department,'#f3f4f6') }};
-                         color:{{ dept_colors.get(r.department,'#6b7280') }};
-                         flex-shrink:0;">
-                {{ (r.department or '未指派')[:2] }}
-            </span>
-            <span style="font-weight:600;font-size:12px;min-width:70px;flex-shrink:0;color:var(--blue-deep);">{{ r.user_name }}</span>
-            <span style="font-size:11px;color:var(--text-muted);min-width:82px;flex-shrink:0;">{{ r.report_date | datefmt }}</span>
-            <span class="log-text">{{ r.content | replace('\n',' ') }}</span>
-        </a>
-        {% else %}
-        <div style="padding:30px 0;text-align:center;color:var(--text-muted);">
-            <i class="bi bi-calendar-x" style="font-size:22px;opacity:0.3;display:block;margin-bottom:6px;"></i>
-            上週（{{ last_week_start }} ~ {{ last_week_end }}）無週報提交
+        <!-- Left list -->
+        <div style="width:260px; flex-shrink:0; border-right:1px solid var(--blue-pale); overflow-y:auto;">
+
+            <!-- ALL list -->
+            <div id="reportListAll">
+                {% for r in mgr_reports_all %}
+                <div class="mgr-r-item" id="mgr-item-{{ r.id }}"
+                     data-id="{{ r.id }}"
+                     onclick="selectMgrReport({{ r.id }})"
+                     style="padding:10px 12px; cursor:pointer; border-bottom:1px solid rgba(212,234,247,0.4);
+                            border-left:3px solid transparent; transition:background 0.1s;">
+                    <div style="display:flex; align-items:center; gap:6px; margin-bottom:3px;">
+                        <span class="dept-pill"
+                              style="background:{{ dept_bg.get(r.department,'#f3f4f6') }};
+                                     color:{{ dept_colors.get(r.department,'#6b7280') }}; font-size:9.5px;">
+                            {{ (r.department or '未指派')[:2] }}
+                        </span>
+                        <span style="font-size:12px; font-weight:700; color:var(--blue-deep);">{{ r.user_name }}</span>
+                    </div>
+                    <div style="font-size:10.5px; color:var(--text-muted); margin-bottom:3px;">{{ r.report_date | datefmt }}</div>
+                    <div style="font-size:11px; color:var(--text-mid); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                        {{ r.content | replace('\n',' ') }}
+                    </div>
+                </div>
+                {% else %}
+                <div style="padding:30px 12px; text-align:center; color:var(--text-muted); font-size:12px;">
+                    尚無週報紀錄
+                </div>
+                {% endfor %}
+            </div>
+
+            <!-- WEEK list -->
+            <div id="reportListWeek" style="display:none;">
+                {% for r in mgr_reports_week %}
+                <div class="mgr-r-item" id="mgr-item-w-{{ r.id }}"
+                     data-id="{{ r.id }}"
+                     onclick="selectMgrReport({{ r.id }})"
+                     style="padding:10px 12px; cursor:pointer; border-bottom:1px solid rgba(212,234,247,0.4);
+                            border-left:3px solid transparent; transition:background 0.1s;">
+                    <div style="display:flex; align-items:center; gap:6px; margin-bottom:3px;">
+                        <span class="dept-pill"
+                              style="background:{{ dept_bg.get(r.department,'#f3f4f6') }};
+                                     color:{{ dept_colors.get(r.department,'#6b7280') }}; font-size:9.5px;">
+                            {{ (r.department or '未指派')[:2] }}
+                        </span>
+                        <span style="font-size:12px; font-weight:700; color:var(--blue-deep);">{{ r.user_name }}</span>
+                    </div>
+                    <div style="font-size:10.5px; color:var(--text-muted); margin-bottom:3px;">{{ r.report_date | datefmt }}</div>
+                    <div style="font-size:11px; color:var(--text-mid); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                        {{ r.content | replace('\n',' ') }}
+                    </div>
+                </div>
+                {% else %}
+                <div style="padding:30px 12px; text-align:center; color:var(--text-muted); font-size:12px;">
+                    上週（{{ last_week_start }} ~ {{ last_week_end }}）無週報
+                </div>
+                {% endfor %}
+            </div>
         </div>
-        {% endfor %}
+
+        <!-- Right detail -->
+        <div style="flex:1; overflow-y:auto; position:relative;">
+            <div id="mgrReportEmpty"
+                 style="height:100%; display:flex; flex-direction:column;
+                        align-items:center; justify-content:center; color:var(--text-light); gap:8px;">
+                <i class="bi bi-journal-text" style="font-size:32px; opacity:0.3;"></i>
+                <span style="font-size:12px;">選擇左側週報以查看內容</span>
+            </div>
+            <div id="mgrReportDetail" style="display:none; padding:18px 22px;">
+                <div style="display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:12px; flex-wrap:wrap; gap:8px;">
+                    <div>
+                        <div style="font-size:16px; font-weight:700; color:#111; letter-spacing:-0.4px; margin-bottom:4px;"
+                             id="mgrDName"></div>
+                        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                            <span id="mgrDDept"></span>
+                            <span style="font-size:12px; color:var(--text-muted);" id="mgrDDate"></span>
+                            <span style="font-size:12px; color:var(--text-light);" id="mgrDTime"></span>
+                        </div>
+                    </div>
+                </div>
+                <div id="mgrDContent"
+                     style="font-size:13px; line-height:1.8; color:#1f2937;
+                            white-space:pre-wrap; background:#f9fafb; border-radius:8px;
+                            padding:14px 16px; border:1px solid #e5e7eb;"></div>
+            </div>
+        </div>
     </div>
 </div>
+
+<!-- Embed report data for manager split-panel -->
+<script>
+const MGR_REPORTS = {
+    {% for r in mgr_reports_all %}
+    {{ r.id }}: {
+        id:         {{ r.id }},
+        user_name:  {{ r.user_name | tojson }},
+        department: {{ (r.department or '未指派') | tojson }},
+        report_date:{{ r.report_date | datefmt | tojson }},
+        created_at: {{ r.created_at | dtfmt | tojson }},
+        content:    {{ r.content | tojson }},
+    },
+    {% endfor %}
+    {% for r in mgr_reports_week %}
+    {% if r.id not in (mgr_reports_all | map(attribute='id') | list) %}
+    {{ r.id }}: {
+        id:         {{ r.id }},
+        user_name:  {{ r.user_name | tojson }},
+        department: {{ (r.department or '未指派') | tojson }},
+        report_date:{{ r.report_date | datefmt | tojson }},
+        created_at: {{ r.created_at | dtfmt | tojson }},
+        content:    {{ r.content | tojson }},
+    },
+    {% endif %}
+    {% endfor %}
+};
+
+const MGR_DEPT_BG    = {{ dept_bg | tojson }};
+const MGR_DEPT_COLOR = {{ dept_colors | tojson }};
+
+let mgrActiveId = null;
+
+function selectMgrReport(id) {
+    // deactivate previous
+    document.querySelectorAll('.mgr-r-item').forEach(el => {
+        el.style.background = '';
+        el.style.borderLeftColor = 'transparent';
+    });
+    // activate clicked (may appear in both lists)
+    ['mgr-item-' + id, 'mgr-item-w-' + id].forEach(sid => {
+        const el = document.getElementById(sid);
+        if (el) {
+            el.style.background = '#eff6ff';
+            el.style.borderLeftColor = '#2563eb';
+            el.scrollIntoView({ block: 'nearest' });
+        }
+    });
+    mgrActiveId = id;
+
+    const r = MGR_REPORTS[id];
+    if (!r) return;
+
+    document.getElementById('mgrReportEmpty').style.display  = 'none';
+    document.getElementById('mgrReportDetail').style.display = 'block';
+
+    document.getElementById('mgrDName').textContent = r.user_name;
+
+    const deptBg = MGR_DEPT_BG[r.department] || '#f3f4f6';
+    const deptCl = MGR_DEPT_COLOR[r.department] || '#6b7280';
+    document.getElementById('mgrDDept').innerHTML =
+        `<span style="display:inline-block;padding:2px 9px;border-radius:999px;font-size:10px;font-weight:700;
+            background:${deptBg};color:${deptCl};">${r.department}</span>`;
+
+    document.getElementById('mgrDDate').textContent = '報告日：' + r.report_date;
+    document.getElementById('mgrDTime').textContent = '提交：'   + r.created_at;
+    document.getElementById('mgrDContent').textContent = r.content;
+}
+
+function resetMgrPanel() {
+    document.querySelectorAll('.mgr-r-item').forEach(el => {
+        el.style.background = '';
+        el.style.borderLeftColor = 'transparent';
+    });
+    mgrActiveId = null;
+    document.getElementById('mgrReportEmpty').style.display  = 'flex';
+    document.getElementById('mgrReportDetail').style.display = 'none';
+}
+</script>
 
 <!-- ══ Activity Log ══════════════════════════════════════════ -->
 <div class="panel">
@@ -562,14 +686,15 @@ function toggleMode() {
     document.getElementById('personTableWeek').style.display = weekMode ? 'block' : 'none';
 
     // Reports
-    document.getElementById('reportPaneAll').style.display  = weekMode ? 'none'  : 'block';
-    document.getElementById('reportPaneWeek').style.display = weekMode ? 'block' : 'none';
+    document.getElementById('reportListAll').style.display  = weekMode ? 'none'  : 'block';
+    document.getElementById('reportListWeek').style.display = weekMode ? 'block' : 'none';
     document.getElementById('reportTitle').textContent = weekMode
         ? '上週週報（{{ last_week_start }} ~ {{ last_week_end }}）'
         : '週報總覽';
     document.getElementById('reportCount').textContent = weekMode
         ? '{{ mgr_reports_week|length }} 份'
         : '{{ mgr_reports_all|length }} 份';
+    resetMgrPanel();
 
     // Logs
     document.getElementById('logPaneAll').style.display  = weekMode ? 'none'  : 'block';
