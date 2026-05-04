@@ -1,0 +1,105 @@
+{% extends 'base.html' %}
+{% block title %}週報列表 — Project Hub{% endblock %}
+{% block header_title %}週報列表{% endblock %}
+
+{% block content %}
+{% set dept_colors = {
+    '會計':'#1d4ed8','財務':'#15803d','投資人':'#7e22ce','財務規劃':'#0f766e',
+    '法務':'#c2410c','自動化':'#3730a3','財務長':'#be123c','未指派':'#6b7280',
+} %}
+{% set dept_bg = {
+    '會計':'#dbeafe','財務':'#dcfce7','投資人':'#f3e8ff','財務規劃':'#ccfbf1',
+    '法務':'#ffedd5','自動化':'#e0e7ff','財務長':'#ffe4e6','未指派':'#f3f4f6',
+} %}
+
+<style>
+.report-card {
+    background:#fff; border-radius:10px; border:1px solid #e5e7eb;
+    box-shadow:0 1px 4px rgba(0,0,0,0.06); margin-bottom:10px;
+    transition:box-shadow 0.15s;
+}
+.report-card:hover { box-shadow:0 3px 10px rgba(0,0,0,0.1); }
+.report-row { display:flex; align-items:center; padding:14px 18px; gap:14px; }
+.dept-badge {
+    display:inline-block; font-size:11px; font-weight:600;
+    padding:2px 8px; border-radius:999px;
+}
+.content-preview {
+    font-size:13px; color:#6b7280; white-space:nowrap;
+    overflow:hidden; text-overflow:ellipsis; max-width:340px;
+}
+.empty-state {
+    text-align:center; padding:60px 20px; color:#9ca3af;
+}
+</style>
+
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:18px; flex-wrap:wrap; gap:10px;">
+    <div>
+        {% if is_mgr and dept_filter %}
+            <span style="font-size:13px; color:#6b7280;">顯示：{{ dept_filter }} 部門週報</span>
+        {% elif is_mgr %}
+            <span style="font-size:13px; color:#6b7280;">顯示：所有部門週報</span>
+        {% else %}
+            <span style="font-size:13px; color:#6b7280;">顯示：我的週報</span>
+        {% endif %}
+    </div>
+    <div style="display:flex; gap:8px;">
+        {% if is_mgr %}
+        <a href="{{ url_for('report_calendar') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-calendar3"></i> 日曆視圖
+        </a>
+        {% endif %}
+        <a href="{{ url_for('report_new') }}" class="btn btn-primary btn-sm">
+            <i class="bi bi-plus-lg"></i> 新建週報
+        </a>
+    </div>
+</div>
+
+{% if reports %}
+{% for r in reports %}
+<div class="report-card">
+    <div class="report-row">
+        <!-- 報告日 -->
+        <div style="min-width:90px;">
+            <div style="font-size:15px; font-weight:700; color:#111; letter-spacing:-0.3px;">
+                {{ r.report_date | datefmt }}
+            </div>
+            <div style="font-size:11px; color:#9ca3af; margin-top:1px;">報告日</div>
+        </div>
+
+        <!-- 部門 badge + 報告人 -->
+        {% if is_mgr %}
+        <div style="min-width:130px;">
+            <span class="dept-badge"
+                  style="background:{{ dept_bg.get(r.department, '#f3f4f6') }};
+                         color:{{ dept_colors.get(r.department, '#6b7280') }};">
+                {{ r.department or '未指派' }}
+            </span>
+            <div style="font-size:12px; color:#374151; margin-top:4px;">{{ r.user_name }}</div>
+        </div>
+        {% endif %}
+
+        <!-- 內容摘要 -->
+        <div style="flex:1; min-width:0;">
+            <div class="content-preview">{{ r.content | replace('\n', ' ') }}</div>
+        </div>
+
+        <!-- 操作 -->
+        <div style="display:flex; gap:6px; flex-shrink:0;">
+            <a href="{{ url_for('report_detail', report_id=r.id) }}"
+               class="btn btn-outline-primary btn-sm">查看</a>
+        </div>
+    </div>
+</div>
+{% endfor %}
+{% else %}
+<div class="empty-state">
+    <i class="bi bi-journal-text" style="font-size:36px; display:block; margin-bottom:10px;"></i>
+    尚無週報紀錄
+    <div style="margin-top:12px;">
+        <a href="{{ url_for('report_new') }}" class="btn btn-primary btn-sm">新建第一份週報</a>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}

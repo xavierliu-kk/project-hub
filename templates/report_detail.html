@@ -1,0 +1,95 @@
+{% extends 'base.html' %}
+{% block title %}週報 {{ report.report_date | datefmt }} — Project Hub{% endblock %}
+{% block header_title %}週報詳情{% endblock %}
+
+{% block content %}
+{% set dept_colors = {
+    '會計':'#1d4ed8','財務':'#15803d','投資人':'#7e22ce','財務規劃':'#0f766e',
+    '法務':'#c2410c','自動化':'#3730a3','財務長':'#be123c','未指派':'#6b7280',
+} %}
+{% set dept_bg = {
+    '會計':'#dbeafe','財務':'#dcfce7','投資人':'#f3e8ff','財務規劃':'#ccfbf1',
+    '法務':'#ffedd5','自動化':'#e0e7ff','財務長':'#ffe4e6','未指派':'#f3f4f6',
+} %}
+
+<div class="row justify-content-center">
+<div class="col-12 col-lg-7">
+
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{{ url_for('report_list') }}">週報列表</a></li>
+        <li class="breadcrumb-item active">{{ report.report_date | datefmt }}</li>
+    </ol>
+</nav>
+
+<div class="card">
+    <!-- Header -->
+    <div style="padding:18px 22px 14px; border-bottom:1px solid rgba(0,0,0,0.05);
+                display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px;">
+        <div>
+            <div class="label mb-1">每週進度報告</div>
+            <h3 style="font-size:17px; font-weight:700; color:#111; margin:0; letter-spacing:-0.4px;">
+                {{ report.report_date | datefmt }} 週報
+            </h3>
+        </div>
+        {% if can_edit %}
+        <div style="display:flex; gap:8px;">
+            <a href="{{ url_for('report_edit', report_id=report.id) }}"
+               class="btn btn-outline-primary btn-sm">
+                <i class="bi bi-pencil"></i> 編輯
+            </a>
+            <form method="POST" action="{{ url_for('report_delete', report_id=report.id) }}"
+                  onsubmit="return confirm('確定要刪除這份週報嗎？')">
+                <button type="submit" class="btn btn-outline-danger btn-sm">
+                    <i class="bi bi-trash"></i> 刪除
+                </button>
+            </form>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Meta -->
+    <div style="padding:14px 22px; border-bottom:1px solid rgba(0,0,0,0.05);
+                display:flex; gap:24px; flex-wrap:wrap;">
+        <div>
+            <div style="font-size:11px; color:#9ca3af; margin-bottom:3px;">報告人</div>
+            <div style="font-size:13px; font-weight:600; color:#111;">{{ report.user_name }}</div>
+        </div>
+        <div>
+            <div style="font-size:11px; color:#9ca3af; margin-bottom:3px;">部門</div>
+            <span style="font-size:12px; font-weight:600; padding:2px 10px; border-radius:999px;
+                         background:{{ dept_bg.get(report.department, '#f3f4f6') }};
+                         color:{{ dept_colors.get(report.department, '#6b7280') }};">
+                {{ report.department or '未指派' }}
+            </span>
+        </div>
+        <div>
+            <div style="font-size:11px; color:#9ca3af; margin-bottom:3px;">建立時間</div>
+            <div style="font-size:13px; color:#374151;">{{ report.created_at | dtfmt }}</div>
+        </div>
+        {% if report.updated_at and report.updated_at != report.created_at %}
+        <div>
+            <div style="font-size:11px; color:#9ca3af; margin-bottom:3px;">最後更新</div>
+            <div style="font-size:13px; color:#374151;">{{ report.updated_at | dtfmt }}</div>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Content -->
+    <div style="padding:20px 22px 24px;">
+        <div style="font-size:13px; color:#9ca3af; margin-bottom:8px;">報告內容</div>
+        <div style="font-size:14px; line-height:1.75; color:#1f2937;
+                    white-space:pre-wrap; background:#f9fafb; border-radius:8px;
+                    padding:16px 18px; border:1px solid #e5e7eb;">{{ report.content }}</div>
+    </div>
+</div>
+
+<div style="margin-top:12px;">
+    <a href="{{ url_for('report_list') }}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left"></i> 返回列表
+    </a>
+</div>
+
+</div>
+</div>
+{% endblock %}

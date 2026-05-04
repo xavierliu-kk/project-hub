@@ -1,0 +1,94 @@
+{% extends 'base.html' %}
+{% block title %}{% if mode == 'edit' %}編輯週報{% else %}新建週報{% endif %} — Project Hub{% endblock %}
+{% block header_title %}{% if mode == 'edit' %}編輯週報{% else %}新建週報{% endif %}{% endblock %}
+
+{% block content %}
+
+<div class="row justify-content-center">
+<div class="col-12 col-lg-7">
+
+<nav aria-label="breadcrumb">
+    <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="{{ url_for('report_list') }}">週報列表</a></li>
+        <li class="breadcrumb-item active">{% if mode == 'edit' %}編輯{% else %}新建{% endif %}</li>
+    </ol>
+</nav>
+
+<div class="card">
+    <div style="padding:18px 22px 14px; border-bottom:1px solid rgba(0,0,0,0.05);">
+        <div class="label mb-1">每週進度報告</div>
+        <h3 style="font-size:15px; font-weight:600; color:#171717; margin:0;">
+            {% if mode == 'edit' %}編輯週報{% else %}新建本週週報{% endif %}
+        </h3>
+    </div>
+    <div style="padding:20px 22px 28px;">
+        <form method="POST">
+
+            <!-- 報告日 -->
+            <div class="mb-3">
+                <label class="form-label">
+                    報告日 <span style="color:#dc2626;">*</span>
+                </label>
+                <input type="date" class="form-control" name="report_date"
+                       value="{{ report_date }}" required
+                       id="reportDateInput">
+                <div class="form-text">同一週只能有一份週報（以週一為週起始）</div>
+            </div>
+
+            <!-- 報告人 (locked) -->
+            <div class="mb-3">
+                <label class="form-label">報告人</label>
+                <input type="text" class="form-control" value="{{ me.name }}" disabled>
+            </div>
+
+            <!-- 報告人部門 (locked) -->
+            <div class="mb-3">
+                <label class="form-label">報告人部門</label>
+                <input type="text" class="form-control" value="{{ me.department }}" disabled>
+            </div>
+
+            <!-- 報告內容 -->
+            <div class="mb-4">
+                <label class="form-label">
+                    報告內容 <span style="color:#dc2626;">*</span>
+                </label>
+                <textarea class="form-control" name="content" id="contentArea"
+                          rows="16" required
+                          style="font-family:monospace; font-size:13px; line-height:1.6;"
+                          placeholder="請填寫本週專案進度報告…">{{ prefill }}</textarea>
+                {% if mode == 'new' %}
+                <div class="form-text" style="color:#0891b2;">
+                    <i class="bi bi-info-circle"></i>
+                    已自動帶入報告日前兩週的待完成專案與異動紀錄，請依實際狀況修改後送出。
+                </div>
+                {% endif %}
+            </div>
+
+            <div style="display:flex; gap:10px;">
+                <button type="submit" class="btn btn-primary">
+                    {% if mode == 'edit' %}儲存變更{% else %}送出週報{% endif %}
+                </button>
+                <a href="{{ url_for('report_list') if mode == 'new' else url_for('report_detail', report_id=report.id) }}"
+                   class="btn btn-outline-secondary">取消</a>
+            </div>
+        </form>
+    </div>
+</div>
+
+</div>
+</div>
+
+<script>
+// When report_date changes, offer to refresh pre-fill (new mode only)
+{% if mode == 'new' %}
+document.getElementById('reportDateInput').addEventListener('change', function() {
+    const d = this.value;
+    if (!d) return;
+    if (confirm('要重新載入該日期的專案參考資料嗎？（目前已輸入的內容將被覆蓋）')) {
+        window.location.href = '{{ url_for("report_new") }}?report_date=' + d;
+    }
+});
+{% endif %}
+</script>
+
+{% endblock %}

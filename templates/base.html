@@ -381,10 +381,21 @@
         </a>
         {% endif %}
 
+        {% if session.get('user_id') %}
+        <a href="{{ url_for('report_list') }}"
+           class="sidebar-item {% if request.endpoint in ['report_list','report_new','report_detail','report_edit'] %}active{% endif %}">
+            <i class="bi bi-journal-text"></i> 週報
+        </a>
+        {% endif %}
+
         {% if current_user_is_manager %}
         <a href="{{ url_for('manager') }}"
            class="sidebar-item {% if request.endpoint == 'manager' %}active{% endif %}">
             <i class="bi bi-graph-up"></i> 主管儀表板
+        </a>
+        <a href="{{ url_for('report_calendar') }}"
+           class="sidebar-item {% if request.endpoint == 'report_calendar' %}active{% endif %}">
+            <i class="bi bi-calendar3"></i> 週報日曆
         </a>
         {% endif %}
 

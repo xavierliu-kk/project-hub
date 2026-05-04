@@ -1,0 +1,122 @@
+{% extends 'base.html' %}
+{% block title %}週報日曆 {{ year }}/{{ month }} — Project Hub{% endblock %}
+{% block header_title %}週報日曆{% endblock %}
+
+{% block content %}
+{% set dept_colors = {
+    '會計':'#1d4ed8','財務':'#15803d','投資人':'#7e22ce','財務規劃':'#0f766e',
+    '法務':'#c2410c','自動化':'#3730a3','財務長':'#be123c','未指派':'#6b7280',
+} %}
+{% set dept_bg = {
+    '會計':'#dbeafe','財務':'#dcfce7','投資人':'#f3e8ff','財務規劃':'#ccfbf1',
+    '法務':'#ffedd5','自動化':'#e0e7ff','財務長':'#ffe4e6','未指派':'#f3f4f6',
+} %}
+
+<style>
+.cal-grid {
+    display:grid; grid-template-columns:repeat(7,1fr);
+    border-left:1px solid #e5e7eb; border-top:1px solid #e5e7eb;
+    border-radius:10px; overflow:hidden;
+    box-shadow:0 2px 8px rgba(0,0,0,0.06);
+}
+.cal-header {
+    background:#f8fafc; padding:9px 0; text-align:center;
+    font-size:12px; font-weight:700; color:#6b7280; letter-spacing:0.5px;
+    border-right:1px solid #e5e7eb; border-bottom:1px solid #e5e7eb;
+}
+.cal-cell {
+    min-height:100px; padding:8px; background:#fff;
+    border-right:1px solid #e5e7eb; border-bottom:1px solid #e5e7eb;
+    vertical-align:top;
+}
+.cal-cell.out-month { background:#f9fafb; }
+.cal-cell.is-today  { background:#eff6ff; }
+.day-num {
+    font-size:13px; font-weight:600; color:#374151;
+    width:26px; height:26px; line-height:26px; text-align:center;
+    border-radius:50%; display:inline-block;
+}
+.cal-cell.is-today .day-num {
+    background:#2563eb; color:#fff;
+}
+.cal-cell.out-month .day-num { color:#d1d5db; }
+.report-pill {
+    display:block; font-size:11px; font-weight:600;
+    padding:2px 7px; border-radius:6px; margin-top:4px;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    text-decoration:none; transition:opacity 0.15s;
+}
+.report-pill:hover { opacity:0.75; text-decoration:none; }
+</style>
+
+<!-- Month nav -->
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
+    <div style="display:flex; align-items:center; gap:12px;">
+        <a href="{{ url_for('report_calendar', year=prev_year, month=prev_month) }}"
+           class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-chevron-left"></i>
+        </a>
+        <span style="font-size:18px; font-weight:700; color:#111; letter-spacing:-0.4px;">
+            {{ year }} 年 {{ month_name }}
+        </span>
+        <a href="{{ url_for('report_calendar', year=next_year, month=next_month) }}"
+           class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-chevron-right"></i>
+        </a>
+    </div>
+    <div style="display:flex; gap:8px; align-items:center;">
+        {% if dept_filter %}
+        <span style="font-size:12px; color:#6b7280;">
+            <i class="bi bi-filter"></i> {{ dept_filter }}
+        </span>
+        {% endif %}
+        <a href="{{ url_for('report_list') }}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-list-ul"></i> 列表視圖
+        </a>
+        <a href="{{ url_for('report_new') }}" class="btn btn-primary btn-sm">
+            <i class="bi bi-plus-lg"></i> 新建週報
+        </a>
+    </div>
+</div>
+
+<!-- Calendar grid -->
+<div class="cal-grid">
+    {% for h in ['一','二','三','四','五','六','日'] %}
+    <div class="cal-header">{{ h }}</div>
+    {% endfor %}
+
+    {% for week in weeks %}
+    {% for day in week %}
+    <div class="cal-cell {% if not day.in_month %}out-month{% endif %} {% if day.is_today %}is-today{% endif %}">
+        <span class="day-num">{{ day.date.day }}</span>
+        {% for r in day.reports %}
+        <a href="{{ url_for('report_detail', report_id=r.id) }}"
+           class="report-pill"
+           title="{{ r.user_name }}（{{ r.department }}）"
+           style="background:{{ dept_bg.get(r.department, '#f3f4f6') }};
+                  color:{{ dept_colors.get(r.department, '#6b7280') }};">
+            {{ r.user_name }}
+        </a>
+        {% endfor %}
+    </div>
+    {% endfor %}
+    {% endfor %}
+</div>
+
+<!-- Legend -->
+{% set seen_depts = [] %}
+<div style="margin-top:14px; display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
+    <span style="font-size:12px; color:#9ca3af;">部門：</span>
+    {% for week in weeks %}{% for day in week %}{% for r in day.reports %}
+    {% if r.department not in seen_depts %}
+    {% if seen_depts.append(r.department) %}{% endif %}
+    <span style="font-size:11px; font-weight:600; padding:2px 9px; border-radius:999px;
+                 background:{{ dept_bg.get(r.department,'#f3f4f6') }};
+                 color:{{ dept_colors.get(r.department,'#6b7280') }};">
+        {{ r.department }}
+    </span>
+    {% endif %}
+    {% endfor %}{% endfor %}{% endfor %}
+</div>
+
+{% endblock %}

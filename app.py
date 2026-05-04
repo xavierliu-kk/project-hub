@@ -221,6 +221,22 @@ def init_db():
             WHERE email = %s AND managed_dept IS NULL
         ''', (_dept, _email))
 
+    # weekly_reports table
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS weekly_reports (
+            id          SERIAL PRIMARY KEY,
+            report_date DATE      NOT NULL,
+            user_id     INTEGER   NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            content     TEXT      NOT NULL DEFAULT '',
+            created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    c.execute('''
+        CREATE UNIQUE INDEX IF NOT EXISTS uq_weekly_report
+        ON weekly_reports (user_id, DATE_TRUNC('week', report_date::timestamp))
+    ''')
+
     # One-time migration: backfill existing pulse / comment / sub-project records
     c.execute('SELECT COUNT(*) FROM activity_log')
     if c.fetchone()['count'] == 0:
@@ -1440,6 +1456,380 @@ def pulse_delete(pulse_id):
     conn.commit()
     release_db(conn)
     return redirect(url_for('project_detail', project_id=project_id) + '#pulse')
+
+
+# ══════════════════════════════════════════════════════════════
+# 週報模組
+# ══════════════════════════════════════════════════════════════
+
+def _get_user_scope(c, user_id):
+    """Returns (is_manager, dept_filter).
+    is_manager: bool
+    dept_filter: None = see all, string = specific dept, '' = own only
+    """
+    c.execute('SELECT managed_dept, is_manager FROM users WHERE id=%s', (user_id,))
+    u = c.fetchone()
+    if not u:
+        return False, ''
+    raw = u.get('managed_dept')
+    if raw == 'ALL':
+        return True, None
+    if raw:
+        return True, raw
+    if u.get('is_manager'):
+        return True, None
+    return False, ''
+
+
+def _build_report_prefill(c, user_id, report_date_str, is_mgr, dept_filter):
+    """Generate pre-fill text: undone projects + 2-week activity."""
+    try:
+        report_date = datetime.strptime(report_date_str, '%Y-%m-%d').date()
+    except (ValueError, TypeError):
+        report_date = date.today()
+
+    two_weeks_ago = datetime.combine(report_date - timedelta(days=14), datetime.min.time())
+    report_dt = datetime.combine(report_date + timedelta(days=1), datetime.min.time())
+
+    status_cond = '''COALESCE((
+        SELECT status FROM project_pulse WHERE project_id=p.id ORDER BY created_at DESC LIMIT 1
+    ), 'new')'''
+
+    if not is_mgr:
+        c.execute(f'''
+            SELECT p.id, p.title,
+                   ua.name AS assignee_name, ua.department AS assignee_dept,
+                   {status_cond} AS last_status
+            FROM projects p
+            LEFT JOIN users ua ON p.assignee_id = ua.id
+            WHERE p.parent_id IS NULL AND p.assignee_id = %s
+              AND {status_cond} != 'done'
+            ORDER BY p.id
+        ''', (user_id, user_id))
+    elif dept_filter:
+        c.execute(f'''
+            SELECT p.id, p.title,
+                   ua.name AS assignee_name, ua.department AS assignee_dept,
+                   {status_cond} AS last_status
+            FROM projects p
+            JOIN users ua ON p.assignee_id = ua.id
+            WHERE p.parent_id IS NULL AND ua.department = %s
+              AND {status_cond} != 'done'
+            ORDER BY p.id
+        ''', (dept_filter, dept_filter))
+    else:
+        c.execute(f'''
+            SELECT p.id, p.title,
+                   ua.name AS assignee_name, ua.department AS assignee_dept,
+                   {status_cond} AS last_status
+            FROM projects p
+            LEFT JOIN users ua ON p.assignee_id = ua.id
+            WHERE p.parent_id IS NULL
+              AND {status_cond} != 'done'
+            ORDER BY p.id
+        ''')
+
+    projects = c.fetchall()
+    if not projects:
+        return '（本週無待完成專案）'
+
+    status_map = {'new': '未開始', 'process': '進行中'}
+    lines = ['【待完成專案 ─ 系統自動帶入，請依實際狀況修改】', '']
+
+    for proj in projects:
+        slabel = status_map.get(proj['last_status'], proj['last_status'])
+        assignee = f"{proj['assignee_name']}（{proj['assignee_dept']}）" if proj.get('assignee_name') else '未指派'
+        lines.append(f"■ {proj['title']}")
+        lines.append(f"  狀態：{slabel}　負責人：{assignee}")
+
+        c.execute('''
+            SELECT al.action_label, al.created_at
+            FROM activity_log al
+            WHERE al.project_id = %s
+              AND al.created_at >= %s AND al.created_at < %s
+            ORDER BY al.created_at DESC
+            LIMIT 5
+        ''', (proj['id'], two_weeks_ago, report_dt))
+        acts = c.fetchall()
+
+        if acts:
+            lines.append('  近兩週異動：')
+            for a in acts:
+                ts = a['created_at'].strftime('%m/%d %H:%M') if a['created_at'] else ''
+                lines.append(f'    {ts}　{a["action_label"]}')
+        else:
+            lines.append('  近兩週無異動')
+        lines.append('')
+
+    return '\n'.join(lines)
+
+
+@app.route('/reports')
+@login_required
+def report_list():
+    conn = get_db()
+    c = conn.cursor()
+    uid = session['user_id']
+    is_mgr, dept_filter = _get_user_scope(c, uid)
+
+    if not is_mgr:
+        c.execute('''
+            SELECT wr.id, wr.report_date, wr.content, wr.created_at,
+                   u.name AS user_name, u.department
+            FROM weekly_reports wr
+            JOIN users u ON wr.user_id = u.id
+            WHERE wr.user_id = %s
+            ORDER BY wr.report_date DESC
+        ''', (uid,))
+    elif dept_filter:
+        c.execute('''
+            SELECT wr.id, wr.report_date, wr.content, wr.created_at,
+                   u.name AS user_name, u.department
+            FROM weekly_reports wr
+            JOIN users u ON wr.user_id = u.id
+            WHERE u.department = %s
+            ORDER BY wr.report_date DESC
+        ''', (dept_filter,))
+    else:
+        c.execute('''
+            SELECT wr.id, wr.report_date, wr.content, wr.created_at,
+                   u.name AS user_name, u.department
+            FROM weekly_reports wr
+            JOIN users u ON wr.user_id = u.id
+            ORDER BY wr.report_date DESC
+        ''')
+    reports = c.fetchall()
+    release_db(conn)
+    return render_template('report_list.html', reports=reports,
+                           is_mgr=is_mgr, dept_filter=dept_filter)
+
+
+@app.route('/reports/new', methods=['GET', 'POST'])
+@login_required
+def report_new():
+    conn = get_db()
+    c = conn.cursor()
+    uid = session['user_id']
+    is_mgr, dept_filter = _get_user_scope(c, uid)
+
+    if request.method == 'POST':
+        report_date_str = request.form.get('report_date', '').strip()
+        content = request.form.get('content', '').strip()
+        if not report_date_str or not content:
+            flash('請填寫報告日期與報告內容', 'danger')
+            release_db(conn)
+            return redirect(url_for('report_new'))
+        try:
+            report_date = datetime.strptime(report_date_str, '%Y-%m-%d').date()
+        except ValueError:
+            flash('日期格式錯誤', 'danger')
+            release_db(conn)
+            return redirect(url_for('report_new'))
+        try:
+            c.execute('''
+                INSERT INTO weekly_reports (report_date, user_id, content)
+                VALUES (%s, %s, %s) RETURNING id
+            ''', (report_date, uid, content))
+            new_id = c.fetchone()['id']
+            conn.commit()
+            release_db(conn)
+            flash('週報已建立', 'success')
+            return redirect(url_for('report_detail', report_id=new_id))
+        except pg_errors.UniqueViolation:
+            conn.rollback()
+            release_db(conn)
+            flash('本週已有一份週報，請編輯現有週報', 'warning')
+            return redirect(url_for('report_list'))
+
+    report_date_str = request.args.get('report_date', date.today().isoformat())
+    c.execute('SELECT name, department FROM users WHERE id=%s', (uid,))
+    me = c.fetchone()
+    prefill = _build_report_prefill(c, uid, report_date_str, is_mgr, dept_filter)
+    release_db(conn)
+    return render_template('report_form.html', mode='new', report=None,
+                           me=me, report_date=report_date_str, prefill=prefill)
+
+
+@app.route('/reports/<int:report_id>')
+@login_required
+def report_detail(report_id):
+    conn = get_db()
+    c = conn.cursor()
+    uid = session['user_id']
+    is_mgr, dept_filter = _get_user_scope(c, uid)
+
+    c.execute('''
+        SELECT wr.id, wr.report_date, wr.content, wr.created_at, wr.updated_at, wr.user_id,
+               u.name AS user_name, u.department
+        FROM weekly_reports wr
+        JOIN users u ON wr.user_id = u.id
+        WHERE wr.id = %s
+    ''', (report_id,))
+    report = c.fetchone()
+    release_db(conn)
+
+    if not report:
+        abort(404)
+    if report['user_id'] != uid:
+        if not is_mgr:
+            abort(403)
+        if dept_filter and report['department'] != dept_filter:
+            abort(403)
+
+    return render_template('report_detail.html', report=report,
+                           can_edit=(report['user_id'] == uid))
+
+
+@app.route('/reports/<int:report_id>/edit', methods=['GET', 'POST'])
+@login_required
+def report_edit(report_id):
+    conn = get_db()
+    c = conn.cursor()
+    uid = session['user_id']
+
+    c.execute('''
+        SELECT wr.*, u.name AS user_name, u.department
+        FROM weekly_reports wr
+        JOIN users u ON wr.user_id = u.id
+        WHERE wr.id = %s
+    ''', (report_id,))
+    report = c.fetchone()
+
+    if not report or report['user_id'] != uid:
+        release_db(conn)
+        abort(403)
+
+    if request.method == 'POST':
+        content = request.form.get('content', '').strip()
+        report_date_str = request.form.get('report_date', '').strip()
+        if not content or not report_date_str:
+            flash('請填寫完整資訊', 'danger')
+            release_db(conn)
+            return redirect(url_for('report_edit', report_id=report_id))
+        try:
+            report_date = datetime.strptime(report_date_str, '%Y-%m-%d').date()
+        except ValueError:
+            flash('日期格式錯誤', 'danger')
+            release_db(conn)
+            return redirect(url_for('report_edit', report_id=report_id))
+        try:
+            c.execute('''
+                UPDATE weekly_reports SET content=%s, report_date=%s, updated_at=NOW()
+                WHERE id=%s AND user_id=%s
+            ''', (content, report_date, report_id, uid))
+            conn.commit()
+            release_db(conn)
+            flash('週報已更新', 'success')
+            return redirect(url_for('report_detail', report_id=report_id))
+        except pg_errors.UniqueViolation:
+            conn.rollback()
+            release_db(conn)
+            flash('該週已有其他週報，無法更改至同一週', 'warning')
+            return redirect(url_for('report_edit', report_id=report_id))
+
+    me = {'name': report['user_name'], 'department': report['department']}
+    release_db(conn)
+    return render_template('report_form.html', mode='edit', report=report,
+                           me=me, report_date=report['report_date'].isoformat(),
+                           prefill=report['content'])
+
+
+@app.route('/reports/<int:report_id>/delete', methods=['POST'])
+@login_required
+def report_delete(report_id):
+    conn = get_db()
+    c = conn.cursor()
+    uid = session['user_id']
+    c.execute('SELECT user_id FROM weekly_reports WHERE id=%s', (report_id,))
+    row = c.fetchone()
+    if not row or row['user_id'] != uid:
+        release_db(conn)
+        abort(403)
+    c.execute('DELETE FROM weekly_reports WHERE id=%s', (report_id,))
+    conn.commit()
+    release_db(conn)
+    flash('週報已刪除', 'success')
+    return redirect(url_for('report_list'))
+
+
+@app.route('/reports/calendar')
+@login_required
+def report_calendar():
+    conn = get_db()
+    c = conn.cursor()
+    uid = session['user_id']
+    is_mgr, dept_filter = _get_user_scope(c, uid)
+
+    if not is_mgr:
+        release_db(conn)
+        abort(403)
+
+    today = date.today()
+    try:
+        year  = int(request.args.get('year',  today.year))
+        month = int(request.args.get('month', today.month))
+        if not (1 <= month <= 12):
+            month = today.month
+    except ValueError:
+        year, month = today.year, today.month
+
+    first_day = date(year, month, 1)
+    last_day  = date(year + (month // 12), month % 12 + 1, 1) - timedelta(days=1)
+
+    if dept_filter:
+        c.execute('''
+            SELECT wr.id, wr.report_date, u.name AS user_name, u.department
+            FROM weekly_reports wr
+            JOIN users u ON wr.user_id = u.id
+            WHERE u.department = %s
+              AND wr.report_date >= %s AND wr.report_date <= %s
+            ORDER BY wr.report_date
+        ''', (dept_filter, first_day, last_day))
+    else:
+        c.execute('''
+            SELECT wr.id, wr.report_date, u.name AS user_name, u.department
+            FROM weekly_reports wr
+            JOIN users u ON wr.user_id = u.id
+            WHERE wr.report_date >= %s AND wr.report_date <= %s
+            ORDER BY wr.report_date
+        ''', (first_day, last_day))
+    reports = c.fetchall()
+    release_db(conn)
+
+    by_date = {}
+    for r in reports:
+        by_date.setdefault(r['report_date'], []).append(r)
+
+    # Build weeks starting from Monday
+    weeks = []
+    cur = first_day - timedelta(days=first_day.weekday())
+    while cur <= last_day:
+        week = []
+        for i in range(7):
+            d = cur + timedelta(days=i)
+            week.append({
+                'date':     d,
+                'in_month': d.month == month,
+                'reports':  by_date.get(d, []),
+                'is_today': d == today,
+            })
+        weeks.append(week)
+        cur += timedelta(days=7)
+
+    prev_month = month - 1 or 12
+    prev_year  = year - (1 if month == 1 else 0)
+    next_month = month % 12 + 1
+    next_year  = year + (1 if month == 12 else 0)
+
+    month_names = ['', '一月', '二月', '三月', '四月', '五月', '六月',
+                   '七月', '八月', '九月', '十月', '十一月', '十二月']
+
+    return render_template('report_calendar.html',
+                           weeks=weeks, year=year, month=month,
+                           month_name=month_names[month],
+                           prev_year=prev_year, prev_month=prev_month,
+                           next_year=next_year, next_month=next_month,
+                           dept_filter=dept_filter, is_mgr=is_mgr)
 
 
 # ══════════════════════════════════════════════════════════════
