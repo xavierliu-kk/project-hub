@@ -34,8 +34,6 @@ pool = ConnectionPool(
 
 DEPARTMENTS = ['會計','財務','投資人','財務規劃','法務','自動化','財務長']
 
-# Emails that can access the manager dashboard
-MANAGER_EMAILS = {'xavier.liu@kkday.com'}
 
 PULSE_STATUS = {
     'new':     {'t_key': 'pulse_new',     'color': '#6b7280'},
@@ -94,13 +92,20 @@ def inject_i18n():
 @app.context_processor
 def inject_manager_flag():
     if 'user_id' not in session:
-        return {'current_user_is_manager': False}
+        return {'current_user_is_manager': False, 'manager_dept': None}
     conn = get_db()
     c = conn.cursor()
-    c.execute('SELECT email, is_manager FROM users WHERE id=%s', (session['user_id'],))
+    c.execute('SELECT managed_dept, is_manager FROM users WHERE id=%s', (session['user_id'],))
     u = c.fetchone()
-    flag = bool(u and (u['email'] in MANAGER_EMAILS or u.get('is_manager')))
-    return {'current_user_is_manager': flag}
+    if not u:
+        return {'current_user_is_manager': False, 'manager_dept': None}
+    raw = u.get('managed_dept')
+    if raw:
+        # 'ALL' means no dept filter; specific string means filter to that dept
+        return {'current_user_is_manager': True, 'manager_dept': None if raw == 'ALL' else raw}
+    if u.get('is_manager'):
+        return {'current_user_is_manager': True, 'manager_dept': None}
+    return {'current_user_is_manager': False, 'manager_dept': None}
 
 
 # ── DB helpers ────────────────────────────────────────────────
@@ -198,6 +203,23 @@ def init_db():
     ''')
 
     c.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS is_manager BOOLEAN DEFAULT FALSE')
+    c.execute('ALTER TABLE users ADD COLUMN IF NOT EXISTS managed_dept TEXT DEFAULT NULL')
+
+    # Seed initial dept manager assignments (idempotent: only set if currently NULL)
+    _initial_managers = [
+        ('xavier.liu@kkday.com',   'ALL'),
+        ('victor.tseng@kkday.com', 'ALL'),
+        ('shannen.lin@kkday.com',  '投資人'),
+        ('johnson.tsai@kkday.com', '法務'),
+        ('mj.chiang@kkday.com',    '財務'),
+        ('steven.yang@kkday.com',  '財務規劃'),
+        ('jensen.huang@kkday.com', '會計'),
+    ]
+    for _email, _dept in _initial_managers:
+        c.execute('''
+            UPDATE users SET managed_dept = %s
+            WHERE email = %s AND managed_dept IS NULL
+        ''', (_dept, _email))
 
     # One-time migration: backfill existing pulse / comment / sub-project records
     c.execute('SELECT COUNT(*) FROM activity_log')
@@ -874,11 +896,15 @@ def manager():
     # Access control
     conn = get_db()
     c = conn.cursor()
-    c.execute('SELECT email, is_manager FROM users WHERE id=%s', (session['user_id'],))
+    c.execute('SELECT managed_dept, is_manager FROM users WHERE id=%s', (session['user_id'],))
     _u = c.fetchone()
-    if not _u or (_u['email'] not in MANAGER_EMAILS and not _u.get('is_manager')):
+    if not _u or (not _u.get('managed_dept') and not _u.get('is_manager')):
         release_db(conn)
         abort(403)
+
+    # Dept scope: None = all depts, string = specific dept
+    _raw_dept = _u.get('managed_dept')
+    managed_dept = None if (not _raw_dept or _raw_dept == 'ALL') else _raw_dept
 
     # Last week date range (previous Sun → this Sun)
     today = date.today()
@@ -887,135 +913,265 @@ def manager():
     last_week_start = this_week_start - timedelta(days=7)
 
     # 1. Summary counts (all-time)
-    c.execute('''
-        SELECT
-            COUNT(*) FILTER (WHERE parent_id IS NULL) AS total,
-            COUNT(*) FILTER (WHERE parent_id IS NULL AND (
-                SELECT status FROM project_pulse WHERE project_id=p.id ORDER BY created_at DESC LIMIT 1
-            ) = 'process') AS in_progress,
-            COUNT(*) FILTER (WHERE parent_id IS NULL AND (
-                SELECT status FROM project_pulse WHERE project_id=p.id ORDER BY created_at DESC LIMIT 1
-            ) = 'done') AS done_count,
-            COUNT(DISTINCT assignee_id) FILTER (WHERE parent_id IS NULL AND assignee_id IS NOT NULL) AS assignee_count
-        FROM projects p
-    ''')
+    if managed_dept:
+        c.execute('''
+            SELECT
+                COUNT(*) FILTER (WHERE p.parent_id IS NULL) AS total,
+                COUNT(*) FILTER (WHERE p.parent_id IS NULL AND (
+                    SELECT status FROM project_pulse WHERE project_id=p.id ORDER BY created_at DESC LIMIT 1
+                ) = 'process') AS in_progress,
+                COUNT(*) FILTER (WHERE p.parent_id IS NULL AND (
+                    SELECT status FROM project_pulse WHERE project_id=p.id ORDER BY created_at DESC LIMIT 1
+                ) = 'done') AS done_count,
+                COUNT(DISTINCT p.assignee_id) FILTER (WHERE p.parent_id IS NULL AND p.assignee_id IS NOT NULL) AS assignee_count
+            FROM projects p
+            JOIN users ua ON p.assignee_id = ua.id
+            WHERE ua.department = %s
+        ''', (managed_dept,))
+    else:
+        c.execute('''
+            SELECT
+                COUNT(*) FILTER (WHERE parent_id IS NULL) AS total,
+                COUNT(*) FILTER (WHERE parent_id IS NULL AND (
+                    SELECT status FROM project_pulse WHERE project_id=p.id ORDER BY created_at DESC LIMIT 1
+                ) = 'process') AS in_progress,
+                COUNT(*) FILTER (WHERE parent_id IS NULL AND (
+                    SELECT status FROM project_pulse WHERE project_id=p.id ORDER BY created_at DESC LIMIT 1
+                ) = 'done') AS done_count,
+                COUNT(DISTINCT assignee_id) FILTER (WHERE parent_id IS NULL AND assignee_id IS NOT NULL) AS assignee_count
+            FROM projects p
+        ''')
     summary = c.fetchone()
 
     # 2. Last-week activity count
-    c.execute('''
-        SELECT COUNT(DISTINCT project_id) AS cnt
-        FROM activity_log
-        WHERE created_at >= %s AND created_at < %s
-    ''', (last_week_start, this_week_start))
+    if managed_dept:
+        c.execute('''
+            SELECT COUNT(DISTINCT al.project_id) AS cnt
+            FROM activity_log al
+            JOIN users u ON al.user_id = u.id
+            WHERE al.created_at >= %s AND al.created_at < %s
+              AND u.department = %s
+        ''', (last_week_start, this_week_start, managed_dept))
+    else:
+        c.execute('''
+            SELECT COUNT(DISTINCT project_id) AS cnt
+            FROM activity_log
+            WHERE created_at >= %s AND created_at < %s
+        ''', (last_week_start, this_week_start))
     last_week_updated = c.fetchone()['cnt']
 
     # 3. Dept stats
-    c.execute('''
-        SELECT
-            COALESCE(ua.department, '未指派') AS department,
-            COUNT(p.id) AS total,
-            COUNT(*) FILTER (WHERE (
-                SELECT status FROM project_pulse WHERE project_id=p.id ORDER BY created_at DESC LIMIT 1
-            ) = 'new') AS new_count,
-            COUNT(*) FILTER (WHERE (
-                SELECT status FROM project_pulse WHERE project_id=p.id ORDER BY created_at DESC LIMIT 1
-            ) = 'process') AS process_count,
-            COUNT(*) FILTER (WHERE (
-                SELECT status FROM project_pulse WHERE project_id=p.id ORDER BY created_at DESC LIMIT 1
-            ) = 'done') AS done_count
-        FROM projects p
-        LEFT JOIN users ua ON p.assignee_id = ua.id
-        WHERE p.parent_id IS NULL
-        GROUP BY COALESCE(ua.department, '未指派')
-        ORDER BY total DESC
-    ''')
+    if managed_dept:
+        c.execute('''
+            SELECT
+                COALESCE(ua.department, '未指派') AS department,
+                COUNT(p.id) AS total,
+                COUNT(*) FILTER (WHERE (
+                    SELECT status FROM project_pulse WHERE project_id=p.id ORDER BY created_at DESC LIMIT 1
+                ) = 'new') AS new_count,
+                COUNT(*) FILTER (WHERE (
+                    SELECT status FROM project_pulse WHERE project_id=p.id ORDER BY created_at DESC LIMIT 1
+                ) = 'process') AS process_count,
+                COUNT(*) FILTER (WHERE (
+                    SELECT status FROM project_pulse WHERE project_id=p.id ORDER BY created_at DESC LIMIT 1
+                ) = 'done') AS done_count
+            FROM projects p
+            LEFT JOIN users ua ON p.assignee_id = ua.id
+            WHERE p.parent_id IS NULL AND ua.department = %s
+            GROUP BY COALESCE(ua.department, '未指派')
+            ORDER BY total DESC
+        ''', (managed_dept,))
+    else:
+        c.execute('''
+            SELECT
+                COALESCE(ua.department, '未指派') AS department,
+                COUNT(p.id) AS total,
+                COUNT(*) FILTER (WHERE (
+                    SELECT status FROM project_pulse WHERE project_id=p.id ORDER BY created_at DESC LIMIT 1
+                ) = 'new') AS new_count,
+                COUNT(*) FILTER (WHERE (
+                    SELECT status FROM project_pulse WHERE project_id=p.id ORDER BY created_at DESC LIMIT 1
+                ) = 'process') AS process_count,
+                COUNT(*) FILTER (WHERE (
+                    SELECT status FROM project_pulse WHERE project_id=p.id ORDER BY created_at DESC LIMIT 1
+                ) = 'done') AS done_count
+            FROM projects p
+            LEFT JOIN users ua ON p.assignee_id = ua.id
+            WHERE p.parent_id IS NULL
+            GROUP BY COALESCE(ua.department, '未指派')
+            ORDER BY total DESC
+        ''')
     dept_stats = c.fetchall()
 
     # 4. Person stats
-    c.execute('''
-        SELECT
-            ua.name AS assignee_name,
-            COALESCE(ua.department, '') AS department,
-            COUNT(p.id) AS total,
-            COUNT(*) FILTER (WHERE (
-                SELECT status FROM project_pulse WHERE project_id=p.id ORDER BY created_at DESC LIMIT 1
-            ) = 'process') AS in_progress
-        FROM projects p
-        JOIN users ua ON p.assignee_id = ua.id
-        WHERE p.parent_id IS NULL
-        GROUP BY ua.name, ua.department
-        ORDER BY total DESC
-    ''')
+    if managed_dept:
+        c.execute('''
+            SELECT
+                ua.name AS assignee_name,
+                COALESCE(ua.department, '') AS department,
+                COUNT(p.id) AS total,
+                COUNT(*) FILTER (WHERE (
+                    SELECT status FROM project_pulse WHERE project_id=p.id ORDER BY created_at DESC LIMIT 1
+                ) = 'process') AS in_progress
+            FROM projects p
+            JOIN users ua ON p.assignee_id = ua.id
+            WHERE p.parent_id IS NULL AND ua.department = %s
+            GROUP BY ua.name, ua.department
+            ORDER BY total DESC
+        ''', (managed_dept,))
+    else:
+        c.execute('''
+            SELECT
+                ua.name AS assignee_name,
+                COALESCE(ua.department, '') AS department,
+                COUNT(p.id) AS total,
+                COUNT(*) FILTER (WHERE (
+                    SELECT status FROM project_pulse WHERE project_id=p.id ORDER BY created_at DESC LIMIT 1
+                ) = 'process') AS in_progress
+            FROM projects p
+            JOIN users ua ON p.assignee_id = ua.id
+            WHERE p.parent_id IS NULL
+            GROUP BY ua.name, ua.department
+            ORDER BY total DESC
+        ''')
     person_stats = c.fetchall()
 
     # 5. Week-mode summary stats
-    c.execute('''
-        SELECT
-            COUNT(*)                                          AS total_actions,
-            COUNT(DISTINCT project_id)                        AS active_projects,
-            COUNT(DISTINCT user_id)                           AS active_users,
-            COUNT(*) FILTER (WHERE action_type='pulse')       AS pulse_count,
-            COUNT(*) FILTER (WHERE action_type='comment')     AS comment_count,
-            COUNT(*) FILTER (WHERE action_type='edit')        AS edit_count,
-            COUNT(*) FILTER (WHERE action_type='sub_project') AS sub_count
-        FROM activity_log
-        WHERE created_at >= %s AND created_at < %s
-    ''', (last_week_start, this_week_start))
+    if managed_dept:
+        c.execute('''
+            SELECT
+                COUNT(*)                                          AS total_actions,
+                COUNT(DISTINCT al.project_id)                     AS active_projects,
+                COUNT(DISTINCT al.user_id)                        AS active_users,
+                COUNT(*) FILTER (WHERE al.action_type='pulse')       AS pulse_count,
+                COUNT(*) FILTER (WHERE al.action_type='comment')     AS comment_count,
+                COUNT(*) FILTER (WHERE al.action_type='edit')        AS edit_count,
+                COUNT(*) FILTER (WHERE al.action_type='sub_project') AS sub_count
+            FROM activity_log al
+            JOIN users u ON al.user_id = u.id
+            WHERE al.created_at >= %s AND al.created_at < %s
+              AND u.department = %s
+        ''', (last_week_start, this_week_start, managed_dept))
+    else:
+        c.execute('''
+            SELECT
+                COUNT(*)                                          AS total_actions,
+                COUNT(DISTINCT project_id)                        AS active_projects,
+                COUNT(DISTINCT user_id)                           AS active_users,
+                COUNT(*) FILTER (WHERE action_type='pulse')       AS pulse_count,
+                COUNT(*) FILTER (WHERE action_type='comment')     AS comment_count,
+                COUNT(*) FILTER (WHERE action_type='edit')        AS edit_count,
+                COUNT(*) FILTER (WHERE action_type='sub_project') AS sub_count
+            FROM activity_log
+            WHERE created_at >= %s AND created_at < %s
+        ''', (last_week_start, this_week_start))
     week_summary = c.fetchone()
 
     # 6. Week dept stats (activity counts by dept)
-    c.execute('''
-        SELECT
-            COALESCE(u.department, '未指派') AS department,
-            COUNT(*) AS total,
-            COUNT(*) FILTER (WHERE al.action_type='pulse')   AS pulse_count,
-            COUNT(*) FILTER (WHERE al.action_type='comment') AS comment_count,
-            COUNT(*) FILTER (WHERE al.action_type='edit')    AS edit_count
-        FROM activity_log al
-        JOIN users u ON al.user_id = u.id
-        WHERE al.created_at >= %s AND al.created_at < %s
-        GROUP BY COALESCE(u.department, '未指派')
-        ORDER BY total DESC
-    ''', (last_week_start, this_week_start))
+    if managed_dept:
+        c.execute('''
+            SELECT
+                COALESCE(u.department, '未指派') AS department,
+                COUNT(*) AS total,
+                COUNT(*) FILTER (WHERE al.action_type='pulse')   AS pulse_count,
+                COUNT(*) FILTER (WHERE al.action_type='comment') AS comment_count,
+                COUNT(*) FILTER (WHERE al.action_type='edit')    AS edit_count
+            FROM activity_log al
+            JOIN users u ON al.user_id = u.id
+            WHERE al.created_at >= %s AND al.created_at < %s
+              AND u.department = %s
+            GROUP BY COALESCE(u.department, '未指派')
+            ORDER BY total DESC
+        ''', (last_week_start, this_week_start, managed_dept))
+    else:
+        c.execute('''
+            SELECT
+                COALESCE(u.department, '未指派') AS department,
+                COUNT(*) AS total,
+                COUNT(*) FILTER (WHERE al.action_type='pulse')   AS pulse_count,
+                COUNT(*) FILTER (WHERE al.action_type='comment') AS comment_count,
+                COUNT(*) FILTER (WHERE al.action_type='edit')    AS edit_count
+            FROM activity_log al
+            JOIN users u ON al.user_id = u.id
+            WHERE al.created_at >= %s AND al.created_at < %s
+            GROUP BY COALESCE(u.department, '未指派')
+            ORDER BY total DESC
+        ''', (last_week_start, this_week_start))
     week_dept_stats = c.fetchall()
 
     # 7. Week person stats (activity counts by person)
-    c.execute('''
-        SELECT
-            u.name AS user_name,
-            COALESCE(u.department, '') AS department,
-            COUNT(*) AS action_count,
-            COUNT(DISTINCT al.project_id) AS project_count
-        FROM activity_log al
-        JOIN users u ON al.user_id = u.id
-        WHERE al.created_at >= %s AND al.created_at < %s
-        GROUP BY u.name, u.department
-        ORDER BY action_count DESC
-    ''', (last_week_start, this_week_start))
+    if managed_dept:
+        c.execute('''
+            SELECT
+                u.name AS user_name,
+                COALESCE(u.department, '') AS department,
+                COUNT(*) AS action_count,
+                COUNT(DISTINCT al.project_id) AS project_count
+            FROM activity_log al
+            JOIN users u ON al.user_id = u.id
+            WHERE al.created_at >= %s AND al.created_at < %s
+              AND u.department = %s
+            GROUP BY u.name, u.department
+            ORDER BY action_count DESC
+        ''', (last_week_start, this_week_start, managed_dept))
+    else:
+        c.execute('''
+            SELECT
+                u.name AS user_name,
+                COALESCE(u.department, '') AS department,
+                COUNT(*) AS action_count,
+                COUNT(DISTINCT al.project_id) AS project_count
+            FROM activity_log al
+            JOIN users u ON al.user_id = u.id
+            WHERE al.created_at >= %s AND al.created_at < %s
+            GROUP BY u.name, u.department
+            ORDER BY action_count DESC
+        ''', (last_week_start, this_week_start))
     week_person_stats = c.fetchall()
 
     # 8. Unified activity log — all recent (150 entries) + last week
-    _log_sql = '''
-        SELECT
-            al.id, al.project_id, al.action_type, al.action_label, al.created_at,
-            u.name AS user_name, u.department AS user_dept,
-            p.title AS project_title,
-            COALESCE(root.title, p.title) AS root_title,
-            COALESCE(p.parent_id, p.id)   AS root_project_id
-        FROM activity_log al
-        JOIN users u    ON al.user_id    = u.id
-        JOIN projects p ON al.project_id = p.id
-        LEFT JOIN projects root ON p.parent_id = root.id
-        {where}
-        ORDER BY al.created_at DESC
-        LIMIT 150
-    '''
-    c.execute(_log_sql.format(where=''))
-    all_logs = c.fetchall()
-
-    c.execute(_log_sql.format(where='WHERE al.created_at >= %s AND al.created_at < %s'),
-              (last_week_start, this_week_start))
-    last_week_logs = c.fetchall()
+    if managed_dept:
+        _log_sql = '''
+            SELECT
+                al.id, al.project_id, al.action_type, al.action_label, al.created_at,
+                u.name AS user_name, u.department AS user_dept,
+                p.title AS project_title,
+                COALESCE(root.title, p.title) AS root_title,
+                COALESCE(p.parent_id, p.id)   AS root_project_id
+            FROM activity_log al
+            JOIN users u    ON al.user_id    = u.id
+            JOIN projects p ON al.project_id = p.id
+            LEFT JOIN projects root ON p.parent_id = root.id
+            WHERE u.department = %s {extra}
+            ORDER BY al.created_at DESC
+            LIMIT 150
+        '''
+        c.execute(_log_sql.format(extra=''), (managed_dept,))
+        all_logs = c.fetchall()
+        c.execute(_log_sql.format(extra='AND al.created_at >= %s AND al.created_at < %s'),
+                  (managed_dept, last_week_start, this_week_start))
+        last_week_logs = c.fetchall()
+    else:
+        _log_sql = '''
+            SELECT
+                al.id, al.project_id, al.action_type, al.action_label, al.created_at,
+                u.name AS user_name, u.department AS user_dept,
+                p.title AS project_title,
+                COALESCE(root.title, p.title) AS root_title,
+                COALESCE(p.parent_id, p.id)   AS root_project_id
+            FROM activity_log al
+            JOIN users u    ON al.user_id    = u.id
+            JOIN projects p ON al.project_id = p.id
+            LEFT JOIN projects root ON p.parent_id = root.id
+            {where}
+            ORDER BY al.created_at DESC
+            LIMIT 150
+        '''
+        c.execute(_log_sql.format(where=''))
+        all_logs = c.fetchall()
+        c.execute(_log_sql.format(where='WHERE al.created_at >= %s AND al.created_at < %s'),
+                  (last_week_start, this_week_start))
+        last_week_logs = c.fetchall()
 
     release_db(conn)
 
@@ -1074,6 +1230,7 @@ def manager():
         pulse_status=PULSE_STATUS,
         last_week_start=last_week_start.date(),
         last_week_end=(this_week_start - timedelta(days=1)).date(),
+        managed_dept=managed_dept,
     )
 
 

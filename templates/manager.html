@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
-{% block title %}主管儀表板 — Project Hub{% endblock %}
-{% block header_title %}主管儀表板{% endblock %}
+{% block title %}{% if managed_dept %}{{ managed_dept }}儀表板{% else %}主管儀表板{% endif %} — Project Hub{% endblock %}
+{% block header_title %}{% if managed_dept %}{{ managed_dept }} 儀表板{% else %}主管儀表板{% endif %}{% endblock %}
 
 {% block content %}
 
