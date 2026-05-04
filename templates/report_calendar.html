@@ -15,85 +15,92 @@
 <style>
 .cal-wrap {
     background:#fff;
-    border-radius:14px;
-    border:1px solid #e5e7eb;
-    box-shadow:0 4px 16px rgba(0,0,0,0.06);
+    border-radius:16px;
+    border:1px solid #e9ecef;
+    box-shadow:0 2px 20px rgba(0,0,0,0.05);
     overflow:hidden;
 }
 .cal-toolbar {
     display:flex; justify-content:space-between; align-items:center;
-    padding:18px 22px 16px; border-bottom:1px solid #f0f0f0;
-    flex-wrap:wrap; gap:10px;
+    padding:22px 28px 20px; border-bottom:1px solid #f0f0f0;
+    flex-wrap:wrap; gap:12px;
 }
-.month-nav { display:flex; align-items:center; gap:14px; }
+.month-nav { display:flex; align-items:center; gap:16px; }
 .month-nav-btn {
-    width:32px; height:32px; border-radius:8px;
+    width:36px; height:36px; border-radius:10px;
     border:1px solid #e5e7eb; background:#fff;
     display:flex; align-items:center; justify-content:center;
-    color:#374151; text-decoration:none; font-size:13px;
-    transition:background 0.15s, border-color 0.15s;
+    color:#374151; text-decoration:none; font-size:14px;
+    transition:background 0.15s;
 }
-.month-nav-btn:hover { background:#f3f4f6; border-color:#d1d5db; color:#111; text-decoration:none; }
-.month-title { font-size:17px; font-weight:700; color:#111; letter-spacing:-0.4px; }
+.month-nav-btn:hover { background:#f3f4f6; color:#111; text-decoration:none; }
+.month-title { font-size:18px; font-weight:700; color:#111; letter-spacing:-0.5px; }
 
 .cal-header-row {
-    display:grid; grid-template-columns:repeat(5,1fr);
-    border-bottom:1px solid #f0f0f0;
+    display:grid; grid-template-columns:repeat(7,1fr);
+    border-bottom:1px solid #f0f0f0; background:#fafafa;
 }
 .cal-header-cell {
-    padding:10px 0; text-align:center;
-    font-size:11px; font-weight:700; color:#9ca3af; letter-spacing:1px;
-    text-transform:uppercase;
+    padding:12px 0; text-align:center;
+    font-size:11px; font-weight:700; color:#9ca3af; letter-spacing:1.5px;
 }
-.cal-body { display:grid; }
-.cal-week { display:grid; grid-template-columns:repeat(5,1fr); }
-.cal-week:not(:last-child) { border-bottom:1px solid #f5f5f5; }
+.cal-header-cell.weekend { color:#d1d5db; }
+
+.cal-body {}
+.cal-week {
+    display:grid; grid-template-columns:repeat(7,1fr);
+    border-bottom:1px solid #f5f5f5;
+}
+.cal-week:last-child { border-bottom:none; }
+
 .cal-cell {
-    min-height:110px; padding:10px 12px;
+    min-height:130px; padding:12px 10px 10px;
     border-right:1px solid #f5f5f5;
-    position:relative;
+    position:relative; box-sizing:border-box;
 }
 .cal-cell:last-child { border-right:none; }
-.cal-cell.out-month { background:#fafafa; }
+.cal-cell.out-month { background:#fcfcfc; }
 .cal-cell.is-today { background:#f0f7ff; }
+.cal-cell.weekend-cell { background:#fafafa; }
+.cal-cell.out-month.weekend-cell { background:#f7f7f7; }
 
 .day-label {
     display:inline-flex; align-items:center; justify-content:center;
     width:28px; height:28px; border-radius:50%;
-    font-size:13px; font-weight:600; color:#374151; margin-bottom:6px;
+    font-size:12px; font-weight:600; color:#374151;
+    margin-bottom:8px; flex-shrink:0;
 }
 .cal-cell.is-today .day-label { background:#2563eb; color:#fff; }
-.cal-cell.out-month .day-label { color:#d1d5db; }
+.cal-cell.out-month .day-label { color:#d1d5db; font-weight:400; }
+.cal-cell.weekend-cell .day-label { color:#c0c4cc; }
 
 .report-pill {
-    display:flex; align-items:center; gap:5px;
-    padding:4px 8px; border-radius:7px; margin-bottom:4px;
-    text-decoration:none; transition:opacity 0.15s, transform 0.1s;
-    cursor:pointer;
+    display:flex; align-items:center; gap:4px;
+    padding:4px 7px; border-radius:7px; margin-bottom:4px;
+    text-decoration:none; transition:opacity 0.15s;
+    line-height:1.3;
 }
-.report-pill:hover { opacity:0.82; transform:translateY(-1px); text-decoration:none; }
-.report-pill-dept {
-    font-size:10px; font-weight:700; opacity:0.7; white-space:nowrap;
-}
-.report-pill-name {
-    font-size:11px; font-weight:600; white-space:nowrap;
-    overflow:hidden; text-overflow:ellipsis; flex:1;
-}
-.pill-dot {
-    width:6px; height:6px; border-radius:50%; flex-shrink:0;
+.report-pill:hover { opacity:0.75; text-decoration:none; }
+.pill-dot { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+.pill-dept { font-size:10px; font-weight:700; flex-shrink:0; }
+.pill-name { font-size:11px; font-weight:500; white-space:nowrap;
+             overflow:hidden; text-overflow:ellipsis; }
+.more-badge {
+    font-size:10px; color:#9ca3af; padding:2px 4px;
+    cursor:default; margin-top:2px; display:inline-block;
 }
 </style>
 
 <!-- Tab bar -->
-<div style="display:flex; gap:4px; margin-bottom:16px;">
+<div style="display:flex; gap:4px; margin-bottom:20px;">
     <a href="{{ url_for('report_list') }}"
-       style="padding:6px 14px; border-radius:8px; font-size:13px; font-weight:500;
+       style="padding:7px 16px; border-radius:9px; font-size:13px; font-weight:500;
               color:#6b7280; text-decoration:none; background:transparent;
-              transition:background 0.15s;">
+              border:1px solid transparent; transition:background 0.15s;">
         <i class="bi bi-list-ul"></i> 列表
     </a>
-    <span style="padding:6px 14px; border-radius:8px; font-size:13px; font-weight:600;
-                 color:#2563eb; background:#eff6ff;">
+    <span style="padding:7px 16px; border-radius:9px; font-size:13px; font-weight:600;
+                 color:#2563eb; background:#eff6ff; border:1px solid #bfdbfe;">
         <i class="bi bi-calendar3"></i> 日曆
     </span>
 </div>
@@ -110,15 +117,20 @@
                 <i class="bi bi-chevron-right"></i>
             </a>
         </div>
-        <div style="display:flex; gap:8px; align-items:center;">
+        <div style="display:flex; gap:10px; align-items:center;">
             {% if dept_filter %}
-            <span style="font-size:12px; padding:3px 10px; border-radius:999px;
+            <span style="font-size:12px; padding:4px 12px; border-radius:999px; font-weight:600;
                          background:{{ dept_bg.get(dept_filter,'#f3f4f6') }};
-                         color:{{ dept_colors.get(dept_filter,'#6b7280') }};
-                         font-weight:600;">
-                <i class="bi bi-filter"></i> {{ dept_filter }}
+                         color:{{ dept_colors.get(dept_filter,'#6b7280') }};">
+                <i class="bi bi-funnel-fill" style="font-size:10px;"></i> {{ dept_filter }}
             </span>
             {% endif %}
+            <form method="POST" action="{{ url_for('seed_test_reports') }}" style="display:inline;">
+                <button type="submit" class="btn btn-outline-secondary btn-sm"
+                        onclick="return confirm('建立會計＋法務四月份假資料？')">
+                    <i class="bi bi-database-add"></i> 建測試資料
+                </button>
+            </form>
             <a href="{{ url_for('report_new') }}" class="btn btn-primary btn-sm">
                 <i class="bi bi-plus-lg"></i> 新建週報
             </a>
@@ -127,31 +139,36 @@
 
     <!-- Weekday headers -->
     <div class="cal-header-row">
-        {% for h in ['週一','週二','週三','週四','週五'] %}
-        <div class="cal-header-cell">{{ h }}</div>
+        {% for h,is_we in [('一',0),('二',0),('三',0),('四',0),('五',0),('六',1),('日',1)] %}
+        <div class="cal-header-cell {% if is_we %}weekend{% endif %}">{{ h }}</div>
         {% endfor %}
     </div>
 
-    <!-- Calendar weeks -->
+    <!-- Calendar body -->
     <div class="cal-body">
     {% for week in weeks %}
     <div class="cal-week">
         {% for day in week %}
-        <div class="cal-cell {% if not day.in_month %}out-month{% endif %} {% if day.is_today %}is-today{% endif %}">
+        {% set is_we = (loop.index0 >= 5) %}
+        <div class="cal-cell
+             {% if not day.in_month %}out-month{% endif %}
+             {% if day.is_today %}is-today{% endif %}
+             {% if is_we %}weekend-cell{% endif %}">
+
             <div class="day-label">{{ day.date.day }}</div>
-            {% for r in day.reports %}
+
+            {% for r in day.reports[:3] %}
             <a href="{{ url_for('report_detail', report_id=r.id) }}" class="report-pill"
                style="background:{{ dept_bg.get(r.department,'#f3f4f6') }};"
                title="{{ r.department }} · {{ r.user_name }}">
                 <span class="pill-dot" style="background:{{ dept_colors.get(r.department,'#9ca3af') }};"></span>
-                <span class="report-pill-dept" style="color:{{ dept_colors.get(r.department,'#6b7280') }};">
-                    {{ r.department[:2] }}
-                </span>
-                <span class="report-pill-name" style="color:{{ dept_colors.get(r.department,'#374151') }};">
-                    {{ r.user_name }}
-                </span>
+                <span class="pill-dept" style="color:{{ dept_colors.get(r.department,'#6b7280') }};">{{ r.department[:2] }}</span>
+                <span class="pill-name"  style="color:{{ dept_colors.get(r.department,'#374151') }};">{{ r.user_name }}</span>
             </a>
             {% endfor %}
+            {% if day.reports | length > 3 %}
+            <span class="more-badge">+{{ day.reports|length - 3 }} 份</span>
+            {% endif %}
         </div>
         {% endfor %}
     </div>
@@ -161,11 +178,11 @@
 
 <!-- Legend -->
 {% set seen = [] %}
-<div style="margin-top:14px; display:flex; flex-wrap:wrap; gap:6px; align-items:center;">
-    <span style="font-size:12px; color:#9ca3af; margin-right:4px;">部門</span>
+<div style="margin-top:16px; display:flex; flex-wrap:wrap; gap:8px; align-items:center;">
+    <span style="font-size:12px; color:#9ca3af;">部門</span>
     {% for week in weeks %}{% for day in week %}{% for r in day.reports %}
         {% if r.department not in seen %}{% if seen.append(r.department) %}{% endif %}
-        <span style="font-size:11px; font-weight:600; padding:3px 10px; border-radius:999px;
+        <span style="font-size:11px; font-weight:600; padding:3px 11px; border-radius:999px;
                      background:{{ dept_bg.get(r.department,'#f3f4f6') }};
                      color:{{ dept_colors.get(r.department,'#6b7280') }};">
             {{ r.department }}

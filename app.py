@@ -1462,6 +1462,57 @@ def pulse_delete(pulse_id):
 # 週報模組
 # ══════════════════════════════════════════════════════════════
 
+@app.route('/admin/seed-test-reports', methods=['POST'])
+@login_required
+def seed_test_reports():
+    """Temporary: seed fake users + reports for April last week UI testing."""
+    conn = get_db()
+    c = conn.cursor()
+
+    fake_users = [
+        # name, email, dept, report_date (last week of April 2026)
+        ('陳小華', 'chen.xiaohua@test.kkday.com', '會計', date(2026, 4, 27)),
+        ('林美玲', 'lin.meiling@test.kkday.com',  '會計', date(2026, 4, 28)),
+        ('王大明', 'wang.daming@test.kkday.com',  '會計', date(2026, 4, 29)),
+        ('吳志豪', 'wu.zhihao@test.kkday.com',    '會計', date(2026, 4, 30)),
+        ('李建國', 'li.jianguo@test.kkday.com',   '法務', date(2026, 4, 27)),
+        ('張美惠', 'zhang.meihui@test.kkday.com', '法務', date(2026, 4, 28)),
+        ('劉雅婷', 'liu.yating@test.kkday.com',   '法務', date(2026, 4, 29)),
+        ('黃俊傑', 'huang.junjie@test.kkday.com', '法務', date(2026, 4, 30)),
+    ]
+    _pw = generate_password_hash('test1234')
+    created = 0
+    for name, email, dept, rdate in fake_users:
+        # Insert user if not exists
+        c.execute('SELECT id FROM users WHERE email=%s', (email,))
+        row = c.fetchone()
+        if row:
+            uid = row['id']
+        else:
+            c.execute(
+                'INSERT INTO users (name, email, password, department) VALUES (%s,%s,%s,%s) RETURNING id',
+                (name, email, _pw, dept)
+            )
+            uid = c.fetchone()['id']
+
+        # Insert report (skip if week already exists)
+        try:
+            c.execute(
+                'INSERT INTO weekly_reports (report_date, user_id, content) VALUES (%s,%s,%s)',
+                (rdate, uid,
+                 f'【{dept}部門週報】\n\n本週專案進度順利，各項工作如期推進。\n\n■ 專案A（進行中）\n  負責人：{name}\n  近兩週異動：04/28 更新進度 → 進行中\n\n■ 專案B（未開始）\n  近兩週無異動')
+            )
+            created += 1
+        except pg_errors.UniqueViolation:
+            conn.rollback()
+            conn = get_db()
+            c = conn.cursor()
+
+    conn.commit()
+    release_db(conn)
+    flash(f'已建立 {created} 筆測試週報', 'success')
+    return redirect(url_for('report_calendar', year=2026, month=4))
+
 def _get_user_scope(c, user_id):
     """Returns (is_manager, dept_filter).
     is_manager: bool
@@ -1800,12 +1851,12 @@ def report_calendar():
     for r in reports:
         by_date.setdefault(r['report_date'], []).append(r)
 
-    # Build weeks Mon–Fri only
+    # Build full 7-day weeks (Mon–Sun)
     weeks = []
     cur = first_day - timedelta(days=first_day.weekday())
     while cur <= last_day:
         week = []
-        for i in range(5):  # Mon=0 … Fri=4
+        for i in range(7):
             d = cur + timedelta(days=i)
             week.append({
                 'date':     d,

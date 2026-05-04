@@ -120,7 +120,7 @@
 <table class="report-table">
     <thead>
         <tr>
-            <th style="width:100px;">報告日</th>
+            <th style="width:120px; white-space:nowrap;">報告日</th>
             {% if is_mgr %}<th style="width:90px;">部門</th>{% endif %}
             {% if is_mgr %}<th style="width:90px;">報告人</th>{% endif %}
             <th>報告摘要</th>
@@ -132,7 +132,7 @@
     <tr class="report-row"
         data-dept="{{ r.department or '' }}"
         data-name="{{ r.user_name }}">
-        <td>
+        <td style="white-space:nowrap;">
             <div style="font-weight:600; color:#111; letter-spacing:-0.2px;">
                 {{ r.report_date | datefmt }}
             </div>
