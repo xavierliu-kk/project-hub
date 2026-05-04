@@ -64,6 +64,23 @@ def dtshort(dt):
         return ''
     return dt.strftime('%m-%d %H:%M') if hasattr(dt, 'strftime') else str(dt)[5:16].replace('T', ' ')
 
+@app.template_filter('report_preview')
+def report_preview(content):
+    """Extract first few project title lines (■) from report content for list preview."""
+    if not content:
+        return ''
+    titles = [l.strip().lstrip('■').strip()
+              for l in content.split('\n')
+              if l.strip().startswith('■')]
+    if titles:
+        return '・'.join(titles[:3]) + ('…' if len(titles) > 3 else '')
+    # fallback: skip boilerplate and return first non-empty line
+    for line in content.split('\n'):
+        s = line.strip()
+        if s and not s.startswith('【') and not s.startswith('※'):
+            return s[:100] + ('…' if len(s) > 100 else '')
+    return content[:100]
+
 
 # ── i18n helpers ──────────────────────────────────────────────
 
@@ -922,11 +939,21 @@ def manager():
     _raw_dept = _u.get('managed_dept')
     managed_dept = None if (not _raw_dept or _raw_dept == 'ALL') else _raw_dept
 
-    # Last week date range (previous Sun → this Sun)
+    # Week selection: from ?week=YYYY-MM-DD param, default to last ISO week
     today = date.today()
-    days_since_sunday = (today.weekday() + 1) % 7
-    this_week_start = datetime.combine(today - timedelta(days=days_since_sunday), datetime.min.time())
-    last_week_start = this_week_start - timedelta(days=7)
+    week_param = request.args.get('week', '').strip()
+    if week_param:
+        try:
+            _anchor = datetime.strptime(week_param, '%Y-%m-%d').date()
+        except ValueError:
+            _anchor = today
+    else:
+        # default: last week's Monday
+        _anchor = today - timedelta(days=today.weekday() + 7)
+
+    _sel_mon      = _anchor - timedelta(days=_anchor.weekday())   # Monday of selected week
+    last_week_start = datetime.combine(_sel_mon, datetime.min.time())
+    this_week_start = last_week_start + timedelta(days=7)          # following Monday (exclusive)
 
     # 1. Summary counts (all-time)
     if managed_dept:
@@ -1289,8 +1316,9 @@ def manager():
         week_person_chart=week_person_chart,
         week_action_chart=week_action_chart,
         pulse_status=PULSE_STATUS,
-        last_week_start=last_week_start.date(),
-        last_week_end=(this_week_start - timedelta(days=1)).date(),
+        last_week_start=_sel_mon,
+        last_week_end=(_sel_mon + timedelta(days=6)),
+        week_param=week_param or _sel_mon.isoformat(),
         managed_dept=managed_dept,
         mgr_reports_all=mgr_reports_all,
         mgr_reports_week=mgr_reports_week,

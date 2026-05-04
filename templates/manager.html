@@ -109,10 +109,24 @@
         <div style="font-size:11px; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:3px;">管理視角</div>
         <div id="modeDesc" style="font-size:13px; color:var(--text-mid);">目前顯示全部專案概況</div>
     </div>
-    <button class="week-btn" id="weekBtn" onclick="toggleMode()">
-        <i class="bi bi-calendar-week"></i>
-        <span id="weekBtnTx">切換至上週進度</span>
-    </button>
+    <div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+        <!-- Week date picker -->
+        <div style="display:flex; align-items:center; gap:6px; background:#fff;
+                    border:1.5px solid var(--blue-pale); border-radius:8px; padding:6px 12px;">
+            <i class="bi bi-calendar3" style="font-size:13px; color:var(--blue-mid);"></i>
+            <span style="font-size:11px; color:var(--text-muted); white-space:nowrap;">選擇週次</span>
+            <input type="date" id="weekPicker"
+                   value="{{ week_param }}"
+                   onchange="gotoWeek(this.value)"
+                   style="border:none; outline:none; font-size:12px; font-weight:600;
+                          color:var(--blue-deep); cursor:pointer; background:transparent; max-width:120px;">
+        </div>
+        <!-- All-mode toggle -->
+        <button class="week-btn" id="weekBtn" onclick="toggleMode()">
+            <i class="bi bi-calendar-week"></i>
+            <span id="weekBtnTx">切換至週進度</span>
+        </button>
+    </div>
 </div>
 
 <!-- ══ Stat Cards ═════════════════════════════════════════════ -->
@@ -663,16 +677,23 @@ function renderWeek() {
         <span style="font-size:11px;color:#0f766e;display:flex;align-items:center;gap:3px;"><span style="width:7px;height:7px;border-radius:50%;background:#0f766e;flex-shrink:0;"></span> 子專案</span>`;
 }
 
+/* ── Week picker navigation ── */
+function gotoWeek(val) {
+    if (!val) return;
+    window.location.href = '{{ url_for("manager") }}?week=' + val;
+}
+
 /* ── Toggle ── */
 let weekMode = false;
+const SEL_WEEK = '{{ last_week_start }} ~ {{ last_week_end }}';
 
 function toggleMode() {
     weekMode = !weekMode;
     const btn = document.getElementById('weekBtn');
     btn.classList.toggle('on', weekMode);
-    document.getElementById('weekBtnTx').textContent = weekMode ? '返回全部概況' : '切換至上週進度';
+    document.getElementById('weekBtnTx').textContent = weekMode ? '返回全部概況' : '切換至週進度';
     document.getElementById('modeDesc').textContent  = weekMode
-        ? '目前顯示上週（{{ last_week_start }} ~ {{ last_week_end }}）動態'
+        ? `目前顯示 ${SEL_WEEK} 週動態`
         : '目前顯示全部專案概況';
 
     // Stats
@@ -689,7 +710,7 @@ function toggleMode() {
     document.getElementById('reportListAll').style.display  = weekMode ? 'none'  : 'block';
     document.getElementById('reportListWeek').style.display = weekMode ? 'block' : 'none';
     document.getElementById('reportTitle').textContent = weekMode
-        ? '上週週報（{{ last_week_start }} ~ {{ last_week_end }}）'
+        ? `週報（${SEL_WEEK}）`
         : '週報總覽';
     document.getElementById('reportCount').textContent = weekMode
         ? '{{ mgr_reports_week|length }} 份'
@@ -699,13 +720,13 @@ function toggleMode() {
     // Logs
     document.getElementById('logPaneAll').style.display  = weekMode ? 'none'  : 'block';
     document.getElementById('logPaneWeek').style.display = weekMode ? 'block' : 'none';
-    document.getElementById('logTitle').textContent = weekMode ? '上週動態紀錄（{{ last_week_start }} ~ {{ last_week_end }}）' : '全部動態紀錄';
+    document.getElementById('logTitle').textContent = weekMode ? `動態紀錄（${SEL_WEEK}）` : '全部動態紀錄';
     document.getElementById('logCount').textContent = weekMode ? '{{ last_week_logs|length }} 筆' : '{{ all_logs|length }} 筆';
 
     // Chart titles
-    document.getElementById('chart1Title').textContent = weekMode ? '各部門上週動態分類' : '各部門專案狀態分佈';
-    document.getElementById('chart2Title').textContent = weekMode ? '上週動態類型分佈'   : '整體狀態';
-    document.getElementById('chart3Title').textContent = weekMode ? '人員上週動態數'     : '人員負責專案數';
+    document.getElementById('chart1Title').textContent = weekMode ? '各部門動態分類' : '各部門專案狀態分佈';
+    document.getElementById('chart2Title').textContent = weekMode ? '動態類型分佈'   : '整體狀態';
+    document.getElementById('chart3Title').textContent = weekMode ? '人員動態數'     : '人員負責專案數';
 
     // Redraw charts
     weekMode ? renderWeek() : renderAll();
