@@ -1,76 +1,130 @@
 {% extends 'base.html' %}
-{% block title %}{% if mode == 'edit' %}編輯週報{% else %}新建週報{% endif %} — Project Hub{% endblock %}
-{% block header_title %}{% if mode == 'edit' %}編輯週報{% else %}新建週報{% endif %}{% endblock %}
+{% block title %}{% if mode == 'edit' %}編輯週報{% else %}新增週報{% endif %} — Project Hub{% endblock %}
+{% block header_title %}{% if mode == 'edit' %}編輯週報{% else %}新增週報{% endif %}{% endblock %}
 
 {% block content %}
-
 <div class="row justify-content-center">
-<div class="col-12 col-lg-7">
+<div class="col-12 col-lg-6">
 
 <nav aria-label="breadcrumb">
     <ol class="breadcrumb">
-        <li class="breadcrumb-item"><a href="{{ url_for('report_list') }}">週報列表</a></li>
-        <li class="breadcrumb-item active">{% if mode == 'edit' %}編輯{% else %}新建{% endif %}</li>
+        <li class="breadcrumb-item"><a href="{{ url_for('report_list') }}">我的週報</a></li>
+        <li class="breadcrumb-item active">{% if mode == 'edit' %}編輯{% else %}新增{% endif %}</li>
     </ol>
 </nav>
 
 <div class="card">
     <div style="padding:18px 22px 14px; border-bottom:1px solid rgba(0,0,0,0.05);">
-        <div class="label mb-1">每週進度報告</div>
+        <div style="font-size:11px; font-weight:700; color:#9ca3af; text-transform:uppercase; letter-spacing:0.05em; margin-bottom:3px;">每週進度報告</div>
         <h3 style="font-size:15px; font-weight:600; color:#171717; margin:0;">
-            {% if mode == 'edit' %}編輯週報{% else %}新建本週週報{% endif %}
+            {% if mode == 'edit' %}編輯週報{% else %}新增本週週報{% endif %}
         </h3>
     </div>
+
     <div style="padding:20px 22px 28px;">
-        <form method="POST">
+        <form method="POST" id="reportForm">
 
-            <!-- 報告日 -->
+{% if mode == 'edit' %}
+            <!-- ── Edit mode: show all fields at once ── -->
             <div class="mb-3">
-                <label class="form-label">
-                    報告日 <span style="color:#dc2626;">*</span>
-                </label>
+                <label class="form-label">報告日 <span style="color:#dc2626;">*</span></label>
                 <input type="date" class="form-control" name="report_date"
-                       value="{{ report_date }}" required
-                       id="reportDateInput">
-                <div class="form-text">同一週只能有一份週報（以週一為週起始）</div>
+                       value="{{ report.report_date | datefmt }}" required>
             </div>
-
-            <!-- 報告人 (locked) -->
             <div class="mb-3">
                 <label class="form-label">報告人</label>
                 <input type="text" class="form-control" value="{{ me.name }}" disabled>
             </div>
-
-            <!-- 報告人部門 (locked) -->
             <div class="mb-3">
-                <label class="form-label">報告人部門</label>
+                <label class="form-label">部門</label>
                 <input type="text" class="form-control" value="{{ me.department }}" disabled>
             </div>
-
-            <!-- 報告內容 -->
             <div class="mb-4">
-                <label class="form-label">
-                    報告內容 <span style="color:#dc2626;">*</span>
-                </label>
-                <textarea class="form-control" name="content" id="contentArea"
-                          rows="16" required
-                          style="font-family:monospace; font-size:13px; line-height:1.6;"
-                          placeholder="請填寫本週專案進度報告…">{{ prefill }}</textarea>
-                {% if mode == 'new' %}
-                <div class="form-text" style="color:#0891b2;">
-                    <i class="bi bi-info-circle"></i>
-                    已自動帶入報告日前兩週的待完成專案與異動紀錄，請依實際狀況修改後送出。
-                </div>
-                {% endif %}
+                <label class="form-label">報告內容 <span style="color:#dc2626;">*</span></label>
+                <textarea class="form-control" name="content" rows="16" required
+                          style="font-family:monospace; font-size:13px; line-height:1.6;">{{ report.content }}</textarea>
             </div>
-
             <div style="display:flex; gap:10px;">
-                <button type="submit" class="btn btn-primary">
-                    {% if mode == 'edit' %}儲存變更{% else %}送出週報{% endif %}
-                </button>
-                <a href="{{ url_for('report_list') if mode == 'new' else url_for('report_detail', report_id=report.id) }}"
+                <button type="submit" class="btn btn-primary">儲存變更</button>
+                <a href="{{ url_for('report_detail', report_id=report.id) }}"
                    class="btn btn-outline-secondary">取消</a>
             </div>
+
+{% else %}
+            <!-- ── New mode: step-by-step ── -->
+
+            <!-- Step 1: date picker -->
+            <div id="step1">
+                <div class="mb-3">
+                    <label class="form-label" style="font-weight:600;">
+                        步驟 1 ─ 選擇報告日 <span style="color:#dc2626;">*</span>
+                    </label>
+                    <div style="display:flex; gap:8px; align-items:flex-start;">
+                        <input type="date" class="form-control" id="dateInput"
+                               value="{{ today }}" style="max-width:180px;">
+                        <button type="button" class="btn btn-primary" onclick="checkDate()">
+                            確認日期
+                        </button>
+                    </div>
+                    <div class="form-text">同一週只能有一份週報（以週一為起始）</div>
+                </div>
+
+                <!-- Reporter info (always visible) -->
+                <div style="display:flex; gap:12px; flex-wrap:wrap; padding:12px 14px;
+                            background:#f9fafb; border-radius:8px; border:1px solid #e5e7eb;
+                            margin-bottom:4px;">
+                    <div>
+                        <div style="font-size:10.5px; color:#9ca3af; margin-bottom:2px;">報告人</div>
+                        <div style="font-size:13px; font-weight:600; color:#111;">{{ me.name }}</div>
+                    </div>
+                    <div>
+                        <div style="font-size:10.5px; color:#9ca3af; margin-bottom:2px;">部門</div>
+                        <div style="font-size:13px; font-weight:600; color:#111;">{{ me.department or '─' }}</div>
+                    </div>
+                </div>
+
+                <!-- Inline alert area -->
+                <div id="dateAlert" style="display:none; margin-top:10px;"></div>
+
+                <!-- Loading indicator -->
+                <div id="dateLoading" style="display:none; margin-top:10px; font-size:12px; color:#6b7280;">
+                    <i class="bi bi-arrow-clockwise" style="animation:spin 1s linear infinite; display:inline-block;"></i>
+                    載入專案資料中…
+                </div>
+            </div>
+
+            <!-- Step 2: content (hidden until date confirmed) -->
+            <div id="step2" style="display:none; margin-top:20px; border-top:1px solid #f0f0f0; padding-top:20px;">
+                <input type="hidden" name="report_date" id="confirmedDate">
+                <div style="display:flex; align-items:center; gap:8px; margin-bottom:14px;">
+                    <span style="font-size:11px; font-weight:700; color:#9ca3af; text-transform:uppercase; letter-spacing:0.05em;">步驟 2 ─ 填寫報告內容</span>
+                    <span id="confirmedDateLabel"
+                          style="font-size:12px; font-weight:600; color:#2563eb; background:#eff6ff;
+                                 padding:2px 10px; border-radius:999px;"></span>
+                    <button type="button" onclick="resetStep()"
+                            style="font-size:11px; color:#6b7280; background:none; border:none;
+                                   cursor:pointer; text-decoration:underline; padding:0;">
+                        重新選日期
+                    </button>
+                </div>
+                <div class="mb-4">
+                    <label class="form-label">報告內容 <span style="color:#dc2626;">*</span></label>
+                    <textarea class="form-control" name="content" id="contentArea"
+                              rows="16" required
+                              style="font-family:monospace; font-size:13px; line-height:1.6;"
+                              placeholder="請填寫本週專案進度報告…"></textarea>
+                    <div class="form-text" style="color:#0891b2;">
+                        <i class="bi bi-info-circle"></i>
+                        已自動帶入報告日前兩週的待完成專案與異動紀錄，請依實際狀況修改後送出。
+                    </div>
+                </div>
+                <div style="display:flex; gap:10px;">
+                    <button type="submit" class="btn btn-primary">送出週報</button>
+                    <a href="{{ url_for('report_list') }}" class="btn btn-outline-secondary">取消</a>
+                </div>
+            </div>
+{% endif %}
+
         </form>
     </div>
 </div>
@@ -78,17 +132,61 @@
 </div>
 </div>
 
-<script>
-// When report_date changes, offer to refresh pre-fill (new mode only)
 {% if mode == 'new' %}
-document.getElementById('reportDateInput').addEventListener('change', function() {
-    const d = this.value;
+<style>
+@keyframes spin { to { transform: rotate(360deg); } }
+</style>
+<script>
+const PREFILL_URL = {{ url_for('report_prefill') | tojson }};
+
+async function checkDate() {
+    const d = document.getElementById('dateInput').value;
     if (!d) return;
-    if (confirm('要重新載入該日期的專案參考資料嗎？（目前已輸入的內容將被覆蓋）')) {
-        window.location.href = '{{ url_for("report_new") }}?report_date=' + d;
+
+    document.getElementById('dateAlert').style.display = 'none';
+    document.getElementById('dateLoading').style.display = 'block';
+
+    try {
+        const res  = await fetch(PREFILL_URL + '?date=' + d);
+        const data = await res.json();
+        document.getElementById('dateLoading').style.display = 'none';
+
+        if (data.exists) {
+            showAlert('danger',
+                `本週已有一份週報，無法重複新增。` +
+                `<a href="{{ url_for('report_list') }}" style="margin-left:8px;">查看週報列表</a>`
+            );
+            return;
+        }
+
+        // OK — reveal step 2
+        document.getElementById('confirmedDate').value = d;
+        document.getElementById('confirmedDateLabel').textContent = d;
+        document.getElementById('contentArea').value = data.prefill || '';
+        document.getElementById('step1').querySelector('input[type=date]').disabled = true;
+        document.getElementById('step1').querySelector('button').disabled = true;
+        document.getElementById('step2').style.display = 'block';
+        document.getElementById('step2').scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    } catch (e) {
+        document.getElementById('dateLoading').style.display = 'none';
+        showAlert('danger', '載入失敗，請重試');
     }
-});
-{% endif %}
+}
+
+function resetStep() {
+    document.getElementById('step1').querySelector('input[type=date]').disabled = false;
+    document.getElementById('step1').querySelector('button').disabled = false;
+    document.getElementById('step2').style.display = 'none';
+    document.getElementById('dateAlert').style.display = 'none';
+}
+
+function showAlert(type, html) {
+    const el = document.getElementById('dateAlert');
+    el.innerHTML = `<div class="alert alert-${type} py-2 mb-0" style="font-size:12px;">${html}</div>`;
+    el.style.display = 'block';
+}
 </script>
+{% endif %}
 
 {% endblock %}

@@ -1668,39 +1668,51 @@ def report_list():
     conn = get_db()
     c = conn.cursor()
     uid = session['user_id']
-    is_mgr, dept_filter = _get_user_scope(c, uid)
-
-    if not is_mgr:
-        c.execute('''
-            SELECT wr.id, wr.report_date, wr.content, wr.created_at, wr.user_id,
-                   u.name AS user_name, u.department
-            FROM weekly_reports wr
-            JOIN users u ON wr.user_id = u.id
-            WHERE wr.user_id = %s
-            ORDER BY wr.report_date DESC
-        ''', (uid,))
-    elif dept_filter:
-        c.execute('''
-            SELECT wr.id, wr.report_date, wr.content, wr.created_at, wr.user_id,
-                   u.name AS user_name, u.department
-            FROM weekly_reports wr
-            JOIN users u ON wr.user_id = u.id
-            WHERE u.department = %s
-            ORDER BY wr.report_date DESC
-        ''', (dept_filter,))
-    else:
-        c.execute('''
-            SELECT wr.id, wr.report_date, wr.content, wr.created_at, wr.user_id,
-                   u.name AS user_name, u.department
-            FROM weekly_reports wr
-            JOIN users u ON wr.user_id = u.id
-            ORDER BY wr.report_date DESC
-        ''')
+    c.execute('''
+        SELECT wr.id, wr.report_date, wr.content, wr.created_at, wr.updated_at
+        FROM weekly_reports wr
+        WHERE wr.user_id = %s
+        ORDER BY wr.report_date DESC
+    ''', (uid,))
     reports = c.fetchall()
     release_db(conn)
-    return render_template('report_list.html', reports=reports,
-                           is_mgr=is_mgr, dept_filter=dept_filter,
-                           current_uid=uid)
+    return render_template('report_list.html', reports=reports)
+
+
+@app.route('/reports/prefill')
+@login_required
+def report_prefill():
+    """AJAX: check week duplicate + return pre-fill text."""
+    conn = get_db()
+    c = conn.cursor()
+    uid = session['user_id']
+    date_str = request.args.get('date', '').strip()
+    if not date_str:
+        release_db(conn)
+        return jsonify({'error': '日期格式錯誤'}), 400
+
+    try:
+        report_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+    except ValueError:
+        release_db(conn)
+        return jsonify({'error': '日期格式錯誤'}), 400
+
+    # Check same-week duplicate
+    c.execute('''
+        SELECT id FROM weekly_reports
+        WHERE user_id = %s
+          AND DATE_TRUNC('week', report_date::timestamp) =
+              DATE_TRUNC('week', %s::timestamp)
+    ''', (uid, report_date.isoformat()))
+    existing = c.fetchone()
+    if existing:
+        release_db(conn)
+        return jsonify({'exists': True, 'report_id': existing['id']})
+
+    is_mgr, dept_filter = _get_user_scope(c, uid)
+    prefill = _build_report_prefill(c, uid, date_str, is_mgr, dept_filter)
+    release_db(conn)
+    return jsonify({'exists': False, 'prefill': prefill})
 
 
 @app.route('/reports/new', methods=['GET', 'POST'])
@@ -1740,13 +1752,11 @@ def report_new():
             flash('本週已有一份週報，請編輯現有週報', 'warning')
             return redirect(url_for('report_list'))
 
-    report_date_str = request.args.get('report_date', date.today().isoformat())
     c.execute('SELECT name, department FROM users WHERE id=%s', (uid,))
     me = c.fetchone()
-    prefill = _build_report_prefill(c, uid, report_date_str, is_mgr, dept_filter)
     release_db(conn)
-    return render_template('report_form.html', mode='new', report=None,
-                           me=me, report_date=report_date_str, prefill=prefill)
+    return render_template('report_form.html', mode='new', report=None, me=me,
+                           today=date.today().isoformat())
 
 
 @app.route('/reports/<int:report_id>')
