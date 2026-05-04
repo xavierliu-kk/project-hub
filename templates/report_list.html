@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% block title %}週報列表 — Project Hub{% endblock %}
+{% block title %}週報 — Project Hub{% endblock %}
 {% block header_title %}週報{% endblock %}
 
 {% block content %}
@@ -13,209 +13,298 @@
 } %}
 
 <style>
-.filter-bar {
-    background:#fff; border-radius:12px; border:1px solid #e5e7eb;
-    padding:14px 18px; margin-bottom:14px;
-    box-shadow:0 1px 4px rgba(0,0,0,0.04);
+/* ── layout ── */
+.report-shell {
+    display:flex; gap:0;
+    background:#fff; border-radius:14px;
+    border:1px solid #e5e7eb;
+    box-shadow:0 2px 16px rgba(0,0,0,0.06);
+    overflow:hidden;
+    height:calc(100vh - 130px);
+    min-height:500px;
 }
+
+/* ── left panel ── */
+.left-panel {
+    width:340px; flex-shrink:0;
+    display:flex; flex-direction:column;
+    border-right:1px solid #f0f0f0;
+}
+.left-header {
+    padding:14px 16px 10px;
+    border-bottom:1px solid #f0f0f0;
+    flex-shrink:0;
+}
+.left-scroll { overflow-y:auto; flex:1; }
+
+/* filter pills */
 .dept-pill {
     display:inline-flex; align-items:center; gap:4px;
-    padding:4px 12px; border-radius:999px; font-size:12px; font-weight:600;
-    cursor:pointer; transition:opacity 0.15s, transform 0.1s;
-    border:2px solid transparent; user-select:none;
+    padding:3px 10px; border-radius:999px; font-size:11px; font-weight:600;
+    cursor:pointer; transition:opacity 0.15s; user-select:none;
+    margin:2px;
 }
-.dept-pill:hover { transform:translateY(-1px); }
-.dept-pill.inactive { opacity:0.35; }
+.dept-pill.inactive { opacity:0.3; }
 
-.report-table { width:100%; border-collapse:separate; border-spacing:0; }
-.report-table thead th {
-    font-size:11px; font-weight:700; color:#9ca3af; letter-spacing:0.5px;
-    padding:8px 12px; text-transform:uppercase;
-    background:#f8fafc; border-bottom:1px solid #e5e7eb;
-    position:sticky; top:0; z-index:1;
+/* list items */
+.r-item {
+    display:flex; align-items:flex-start; gap:10px;
+    padding:12px 16px; cursor:pointer;
+    border-bottom:1px solid #f5f5f5;
+    transition:background 0.12s;
+    position:relative;
 }
-.report-table thead th:first-child { border-radius:10px 0 0 0; }
-.report-table thead th:last-child  { border-radius:0 10px 0 0; }
-.report-row td {
-    padding:11px 12px; border-bottom:1px solid #f3f4f6;
-    vertical-align:middle; font-size:13px;
-    transition:background 0.1s;
+.r-item:hover { background:#f9fafb; }
+.r-item.active {
+    background:#eff6ff;
+    border-left:3px solid #2563eb;
+    padding-left:13px;
 }
-.report-row:hover td { background:#f9fafb; }
-.report-row.hidden { display:none; }
+.r-item.hidden { display:none; }
+.r-item-main { flex:1; min-width:0; }
+.r-item-name { font-size:13px; font-weight:600; color:#111; margin-bottom:2px; }
+.r-item-date { font-size:11px; color:#9ca3af; margin-bottom:4px; }
+.r-item-preview {
+    font-size:12px; color:#6b7280;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.r-item-badge {
+    font-size:10px; font-weight:700; padding:2px 7px; border-radius:999px;
+    white-space:nowrap; flex-shrink:0; margin-top:1px;
+}
 
-.table-wrap {
-    background:#fff; border-radius:12px; border:1px solid #e5e7eb;
-    box-shadow:0 1px 4px rgba(0,0,0,0.04); overflow:hidden;
+/* ── right panel ── */
+.right-panel {
+    flex:1; display:flex; flex-direction:column; min-width:0; overflow:hidden;
 }
-.dept-badge {
-    display:inline-block; font-size:11px; font-weight:600;
-    padding:2px 8px; border-radius:999px; white-space:nowrap;
+.detail-header {
+    padding:22px 28px 16px;
+    border-bottom:1px solid #f0f0f0;
+    flex-shrink:0;
 }
-.preview-text {
-    color:#6b7280; white-space:nowrap; overflow:hidden;
-    text-overflow:ellipsis; max-width:320px;
+.detail-body { flex:1; overflow-y:auto; padding:24px 28px; }
+.detail-name { font-size:22px; font-weight:700; color:#111; letter-spacing:-0.5px; margin-bottom:6px; }
+.detail-meta { font-size:13px; color:#6b7280; }
+.detail-meta span { margin-right:16px; }
+.detail-content {
+    font-size:14px; line-height:1.8; color:#1f2937;
+    white-space:pre-wrap;
+    background:#f9fafb; border-radius:10px;
+    padding:20px 22px; border:1px solid #e5e7eb;
+    margin-top:18px;
 }
-.empty-state { text-align:center; padding:48px 20px; color:#9ca3af; }
-#result-count { font-size:12px; color:#9ca3af; }
+.detail-actions { margin-top:20px; display:flex; gap:8px; }
+.empty-right {
+    flex:1; display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    color:#d1d5db; gap:10px;
+}
 </style>
 
-<!-- Tab bar -->
-<div style="display:flex; gap:4px; margin-bottom:16px;">
-    <span style="padding:6px 14px; border-radius:8px; font-size:13px; font-weight:600;
-                 color:#2563eb; background:#eff6ff;">
-        <i class="bi bi-list-ul"></i> 列表
-    </span>
-    {% if is_mgr %}
-    <a href="{{ url_for('report_calendar') }}"
-       style="padding:6px 14px; border-radius:8px; font-size:13px; font-weight:500;
-              color:#6b7280; text-decoration:none; transition:background 0.15s;">
-        <i class="bi bi-calendar3"></i> 日曆
-    </a>
-    {% endif %}
-</div>
-
-<!-- Filter bar (managers only) -->
-{% if is_mgr and reports %}
-<div class="filter-bar">
-    <div style="display:flex; flex-wrap:wrap; align-items:center; gap:10px;">
-
-        <!-- Dept pills -->
-        <div style="display:flex; flex-wrap:wrap; gap:6px; flex:1;" id="deptPills">
-            {% set depts = reports | map(attribute='department') | unique | list %}
-            {% for d in depts %}
-            <span class="dept-pill" data-dept="{{ d }}"
-                  style="background:{{ dept_bg.get(d,'#f3f4f6') }}; color:{{ dept_colors.get(d,'#6b7280') }};"
-                  onclick="toggleDept(this)">
-                <span class="pill-dot" style="width:7px;height:7px;border-radius:50%;background:{{ dept_colors.get(d,'#9ca3af') }};display:inline-block;"></span>
-                {{ d }}
-            </span>
-            {% endfor %}
-        </div>
-
-        <!-- Search -->
-        <input type="text" id="searchInput" placeholder="搜尋報告人…"
-               oninput="applyFilters()"
-               style="border:1px solid #e5e7eb; border-radius:8px; padding:5px 12px;
-                      font-size:13px; width:150px; outline:none;">
+<!-- Top bar -->
+<div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; flex-wrap:wrap; gap:10px;">
+    <div style="font-size:13px; color:#6b7280;">
+        {% if is_mgr and not dept_filter %}所有部門
+        {% elif dept_filter %}{{ dept_filter }} 部門
+        {% else %}我的週報
+        {% endif %}
+        <span id="countBadge" style="margin-left:6px; font-weight:600; color:#374151;"></span>
     </div>
-    <div style="margin-top:10px; display:flex; align-items:center; justify-content:space-between;">
-        <span id="result-count"></span>
-        <button onclick="clearFilters()"
-                style="font-size:12px; color:#9ca3af; background:none; border:none;
-                       cursor:pointer; padding:0;">清除篩選</button>
-    </div>
-</div>
-{% endif %}
-
-<!-- Top actions -->
-<div style="display:flex; justify-content:flex-end; margin-bottom:10px;">
     <a href="{{ url_for('report_new') }}" class="btn btn-primary btn-sm">
         <i class="bi bi-plus-lg"></i> 新建週報
     </a>
 </div>
 
 {% if reports %}
-<div class="table-wrap">
-<table class="report-table">
-    <thead>
-        <tr>
-            <th style="width:120px; white-space:nowrap;">報告日</th>
-            {% if is_mgr %}<th style="width:90px;">部門</th>{% endif %}
-            {% if is_mgr %}<th style="width:90px;">報告人</th>{% endif %}
-            <th>報告摘要</th>
-            <th style="width:60px;"></th>
-        </tr>
-    </thead>
-    <tbody id="reportBody">
-    {% for r in reports %}
-    <tr class="report-row"
-        data-dept="{{ r.department or '' }}"
-        data-name="{{ r.user_name }}">
-        <td style="white-space:nowrap;">
-            <div style="font-weight:600; color:#111; letter-spacing:-0.2px;">
-                {{ r.report_date | datefmt }}
+<div class="report-shell">
+
+    <!-- Left panel -->
+    <div class="left-panel">
+        <!-- Filters -->
+        <div class="left-header">
+            {% if is_mgr %}
+            <div id="deptPills" style="margin-bottom:8px; line-height:1.8;">
+                {% set depts = reports | map(attribute='department') | unique | list %}
+                {% for d in depts %}
+                <span class="dept-pill" data-dept="{{ d }}" onclick="toggleDept(this)"
+                      style="background:{{ dept_bg.get(d,'#f3f4f6') }}; color:{{ dept_colors.get(d,'#6b7280') }};">
+                    {{ d }}
+                </span>
+                {% endfor %}
             </div>
-        </td>
-        {% if is_mgr %}
-        <td>
-            <span class="dept-badge"
-                  style="background:{{ dept_bg.get(r.department,'#f3f4f6') }};
-                         color:{{ dept_colors.get(r.department,'#6b7280') }};">
-                {{ r.department or '未指派' }}
-            </span>
-        </td>
-        <td style="font-size:13px; color:#374151; font-weight:500;">{{ r.user_name }}</td>
-        {% endif %}
-        <td>
-            <div class="preview-text">{{ r.content | replace('\n',' ') }}</div>
-        </td>
-        <td>
-            <a href="{{ url_for('report_detail', report_id=r.id) }}"
-               style="font-size:12px; color:#2563eb; text-decoration:none; font-weight:500;
-                      white-space:nowrap;">
-                查看 →
-            </a>
-        </td>
-    </tr>
-    {% endfor %}
-    </tbody>
-</table>
-</div>
-{% else %}
-<div class="empty-state">
-    <i class="bi bi-journal-text" style="font-size:36px; display:block; margin-bottom:10px;"></i>
-    尚無週報紀錄
-    <div style="margin-top:12px;">
-        <a href="{{ url_for('report_new') }}" class="btn btn-primary btn-sm">新建第一份週報</a>
+            {% endif %}
+            <input type="text" id="searchInput" placeholder="搜尋報告人…" oninput="applyFilters()"
+                   style="width:100%; border:1px solid #e5e7eb; border-radius:8px;
+                          padding:6px 10px; font-size:12px; outline:none; box-sizing:border-box;">
+        </div>
+
+        <!-- List -->
+        <div class="left-scroll">
+            {% for r in reports %}
+            <div class="r-item" id="item-{{ r.id }}"
+                 data-id="{{ r.id }}"
+                 data-dept="{{ r.department or '' }}"
+                 data-name="{{ r.user_name }}"
+                 onclick="selectReport({{ r.id }})">
+                <div class="r-item-main">
+                    <div class="r-item-name">{{ r.user_name }}</div>
+                    <div class="r-item-date">{{ r.report_date | datefmt }}</div>
+                    <div class="r-item-preview">{{ r.content | replace('\n',' ') }}</div>
+                </div>
+                <span class="r-item-badge"
+                      style="background:{{ dept_bg.get(r.department,'#f3f4f6') }};
+                             color:{{ dept_colors.get(r.department,'#6b7280') }};">
+                    {{ r.department or '未指派' }}
+                </span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Right panel -->
+    <div class="right-panel" id="rightPanel">
+        <div class="empty-right" id="emptyRight">
+            <i class="bi bi-journal-text" style="font-size:40px;"></i>
+            <span style="font-size:14px;">選擇左側週報以查看內容</span>
+        </div>
+        <div id="detailView" style="display:none; flex-direction:column; height:100%;">
+            <div class="detail-header">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:10px;">
+                    <div>
+                        <div class="detail-name" id="dName"></div>
+                        <div class="detail-meta">
+                            <span id="dDept"></span>
+                            <span id="dDate"></span>
+                            <span id="dTime"></span>
+                        </div>
+                    </div>
+                    <div id="dActions" class="detail-actions" style="margin-top:0;"></div>
+                </div>
+            </div>
+            <div class="detail-body">
+                <div class="detail-content" id="dContent"></div>
+            </div>
+        </div>
     </div>
 </div>
-{% endif %}
 
+<!-- Embed report data as JSON -->
 <script>
+const REPORTS = {
+    {% for r in reports %}
+    {{ r.id }}: {
+        id:         {{ r.id }},
+        user_name:  {{ r.user_name | tojson }},
+        department: {{ (r.department or '未指派') | tojson }},
+        report_date:{{ r.report_date | datefmt | tojson }},
+        created_at: {{ r.created_at | dtfmt | tojson }},
+        content:    {{ r.content | tojson }},
+        can_edit:   {{ 'true' if r.user_id == current_uid else 'false' }},
+        edit_url:   {{ url_for('report_edit',   report_id=r.id) | tojson }},
+        delete_url: {{ url_for('report_delete', report_id=r.id) | tojson }},
+    },
+    {% endfor %}
+};
+
+const deptBg = {{ dept_bg | tojson }};
+const deptColor = {{ dept_colors | tojson }};
+
+let activeId = null;
 const activeDepts = new Set();
+
+function selectReport(id) {
+    // update active state
+    if (activeId) document.getElementById('item-' + activeId)?.classList.remove('active');
+    document.getElementById('item-' + id)?.classList.add('active');
+    activeId = id;
+
+    const r = REPORTS[id];
+    document.getElementById('emptyRight').style.display  = 'none';
+    const dv = document.getElementById('detailView');
+    dv.style.display = 'flex';
+
+    // header
+    document.getElementById('dName').textContent = r.user_name;
+
+    const deptSpan = document.getElementById('dDept');
+    deptSpan.innerHTML = `<span style="display:inline-block;padding:2px 9px;border-radius:999px;font-size:11px;font-weight:700;
+        background:${deptBg[r.department]||'#f3f4f6'};color:${deptColor[r.department]||'#6b7280'};">${r.department}</span>`;
+
+    document.getElementById('dDate').textContent = '報告日：' + r.report_date;
+    document.getElementById('dTime').textContent = '提交：' + r.created_at;
+
+    // content
+    document.getElementById('dContent').textContent = r.content;
+
+    // actions
+    const actDiv = document.getElementById('dActions');
+    if (r.can_edit) {
+        actDiv.innerHTML = `
+            <a href="${r.edit_url}" class="btn btn-outline-primary btn-sm">
+                <i class="bi bi-pencil"></i> 編輯
+            </a>
+            <form method="POST" action="${r.delete_url}" style="display:inline;"
+                  onsubmit="return confirm('確定刪除此週報？')">
+                <button type="submit" class="btn btn-outline-danger btn-sm">
+                    <i class="bi bi-trash"></i> 刪除
+                </button>
+            </form>`;
+    } else {
+        actDiv.innerHTML = '';
+    }
+
+    // scroll item into view
+    document.getElementById('item-' + id)?.scrollIntoView({block:'nearest'});
+}
 
 function toggleDept(el) {
     const d = el.dataset.dept;
-    if (activeDepts.has(d)) {
-        activeDepts.delete(d);
-        el.classList.remove('inactive');
-    } else {
-        activeDepts.add(d);
-    }
-    // grey out non-selected
+    if (activeDepts.has(d)) { activeDepts.delete(d); }
+    else { activeDepts.add(d); }
     document.querySelectorAll('.dept-pill').forEach(p => {
-        if (activeDepts.size === 0) {
-            p.classList.remove('inactive');
-        } else {
-            p.classList.toggle('inactive', !activeDepts.has(p.dataset.dept));
-        }
+        p.classList.toggle('inactive', activeDepts.size > 0 && !activeDepts.has(p.dataset.dept));
     });
     applyFilters();
 }
 
 function applyFilters() {
     const q = (document.getElementById('searchInput')?.value || '').toLowerCase();
-    const rows = document.querySelectorAll('#reportBody .report-row');
     let visible = 0;
-    rows.forEach(row => {
-        const deptMatch = activeDepts.size === 0 || activeDepts.has(row.dataset.dept);
-        const nameMatch = !q || row.dataset.name.toLowerCase().includes(q);
-        const show = deptMatch && nameMatch;
+    document.querySelectorAll('.r-item').forEach(row => {
+        const show = (activeDepts.size === 0 || activeDepts.has(row.dataset.dept))
+                  && (!q || row.dataset.name.toLowerCase().includes(q));
         row.classList.toggle('hidden', !show);
         if (show) visible++;
     });
-    const el = document.getElementById('result-count');
-    if (el) el.textContent = activeDepts.size > 0 || q ? `顯示 ${visible} / ${rows.length} 筆` : '';
+    document.getElementById('countBadge').textContent = `${visible} 份`;
+
+    // if active item got filtered out, clear right panel
+    if (activeId) {
+        const activeItem = document.getElementById('item-' + activeId);
+        if (activeItem && activeItem.classList.contains('hidden')) {
+            document.getElementById('detailView').style.display = 'none';
+            document.getElementById('emptyRight').style.display = 'flex';
+            activeId = null;
+        }
+    }
 }
 
-function clearFilters() {
-    activeDepts.clear();
-    document.querySelectorAll('.dept-pill').forEach(p => p.classList.remove('inactive'));
-    const si = document.getElementById('searchInput');
-    if (si) si.value = '';
-    applyFilters();
-}
+// init: select first, set count
+window.addEventListener('DOMContentLoaded', () => {
+    const ids = Object.keys(REPORTS);
+    document.getElementById('countBadge').textContent = ids.length + ' 份';
+    if (ids.length > 0) selectReport(parseInt(ids[0]));
+});
 </script>
+
+{% else %}
+<div style="text-align:center; padding:80px 20px; color:#9ca3af;">
+    <i class="bi bi-journal-text" style="font-size:40px; display:block; margin-bottom:12px;"></i>
+    尚無週報紀錄
+    <div style="margin-top:14px;">
+        <a href="{{ url_for('report_new') }}" class="btn btn-primary btn-sm">新建第一份週報</a>
+    </div>
+</div>
+{% endif %}
 
 {% endblock %}

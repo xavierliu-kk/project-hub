@@ -1625,7 +1625,7 @@ def report_list():
 
     if not is_mgr:
         c.execute('''
-            SELECT wr.id, wr.report_date, wr.content, wr.created_at,
+            SELECT wr.id, wr.report_date, wr.content, wr.created_at, wr.user_id,
                    u.name AS user_name, u.department
             FROM weekly_reports wr
             JOIN users u ON wr.user_id = u.id
@@ -1634,7 +1634,7 @@ def report_list():
         ''', (uid,))
     elif dept_filter:
         c.execute('''
-            SELECT wr.id, wr.report_date, wr.content, wr.created_at,
+            SELECT wr.id, wr.report_date, wr.content, wr.created_at, wr.user_id,
                    u.name AS user_name, u.department
             FROM weekly_reports wr
             JOIN users u ON wr.user_id = u.id
@@ -1643,7 +1643,7 @@ def report_list():
         ''', (dept_filter,))
     else:
         c.execute('''
-            SELECT wr.id, wr.report_date, wr.content, wr.created_at,
+            SELECT wr.id, wr.report_date, wr.content, wr.created_at, wr.user_id,
                    u.name AS user_name, u.department
             FROM weekly_reports wr
             JOIN users u ON wr.user_id = u.id
@@ -1652,7 +1652,8 @@ def report_list():
     reports = c.fetchall()
     release_db(conn)
     return render_template('report_list.html', reports=reports,
-                           is_mgr=is_mgr, dept_filter=dept_filter)
+                           is_mgr=is_mgr, dept_filter=dept_filter,
+                           current_uid=uid)
 
 
 @app.route('/reports/new', methods=['GET', 'POST'])
